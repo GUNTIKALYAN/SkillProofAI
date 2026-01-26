@@ -1,10 +1,6 @@
 from fastapi import FastAPI
+from Backend.app.api.routes import router
 
 app = FastAPI(title="SKILL PROOF API")
 
-@app.get("/")
-async def welcome():
-    return {"message" : "Welcome to Skill Proof AI"}
-
-
-
+app.include_router(router)

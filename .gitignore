@@ -6,3 +6,5 @@ Documentation/
 *.pyc
 node_modules/
 docker-volumes/
+check_ouput.py
+.pytest_cache/
