@@ -9,7 +9,7 @@ from app.utils.constants import (
     PROJECT_HEADERS,
     EXPERIENCE_HEADERS
 )
-from Backend.app.utils.text_utils import is_header, normalize_text
+from app.utils.text_utils import is_header, normalize_text
 
 
 def parse_resume(file_path: str) -> Dict[str, List[str]]:
