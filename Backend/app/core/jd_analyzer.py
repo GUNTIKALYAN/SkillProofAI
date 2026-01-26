@@ -5,7 +5,7 @@ from app.utils.constants import (
     PREFERRED_HEADERS,
     SKILL_VOCABULARY
 )
-from Backend.app.utils.text_utils import is_header
+from app.utils.text_utils import is_header
 
 
 def analyze_job_description(jd_text: str) -> Dict[str, List[str]]:

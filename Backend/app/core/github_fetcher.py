@@ -40,7 +40,7 @@ def fetch_github_evidence(username: str) -> Dict[str, dict]:
     repos = _fetch_repositories(username, headers)
 
     # Import vocabulary here to avoid circular imports
-    from Backend.app.utils.constants import SKILL_VOCABULARY
+    from app.utils.constants import SKILL_VOCABULARY
 
     evidence = {}
 
@@ -95,9 +95,7 @@ def fetch_github_evidence(username: str) -> Dict[str, dict]:
     return evidence
 
 
-# =============================
 # Internal Helpers
-# =============================
 
 def _fetch_repositories(username: str, headers: dict) -> List[dict]:
     url = f"{GITHUB_API_BASE}/users/{username}/repos?per_page=100"
