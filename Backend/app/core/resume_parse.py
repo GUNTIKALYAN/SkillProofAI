@@ -4,7 +4,7 @@ from typing import Dict, List
 import pdfplumber
 from docx import Document
 
-from Backend.app.utils.constants import (
+from app.utils.constants import (
     SKILL_HEADERS,
     PROJECT_HEADERS,
     EXPERIENCE_HEADERS
