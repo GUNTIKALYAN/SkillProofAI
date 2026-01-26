@@ -24,7 +24,7 @@ jobs:
       # Run tests inside container
       - name: Run tests
         run: |
-          docker run --rm skillproof-backend:ci pytest app
+          docker run --rm skillproof-backend:ci pytest 
       
       # Login ONLY on main branch
       - name: Login to DockerHub
