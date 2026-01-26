@@ -1,0 +1,57 @@
+skillproof-ai/
+│
+├── frontend/
+│   ├── index.html
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── main.js
+│   └── assets/
+│       └── logo.png
+│
+├── backend/
+│   ├── app/
+│   │   ├── main.py                # FastAPI entry point
+│   │   ├── config.py              # API keys, env config
+│   │
+│   │   ├── api/
+│   │   │   └── routes.py           # /analyze endpoint
+│   │
+│   │   ├── core/
+│   │   │   ├── resume_parser.py    # PDF/DOCX parsing
+│   │   │   ├── jd_analyzer.py      # JD skill extraction
+│   │   │   ├── skill_mapper.py     # Resume ↔ JD mapping
+│   │   │   ├── github_fetcher.py   # GitHub API logic
+│   │   │   ├── evidence_validator.py
+│   │   │   └── ats_scorer.py       # ATS before/after logic
+│   │
+│   │   ├── agents/
+│   │   │   ├── skill_audit_agent.py
+│   │   │   ├── gap_analysis_agent.py
+│   │   │   ├── ats_impact_agent.py
+│   │   │   ├── action_planner_agent.py
+│   │   │   └── agent_runner.py     # Orchestrates agents (LangGraph)
+│   │
+│   │   ├── schemas/
+│   │   │   ├── input_schema.py     # Pydantic input models
+│   │   │   └── output_schema.py    # Pydantic output models
+│   │
+│   │   ├── services/
+│   │   │   └── analysis_service.py # End-to-end pipeline
+│   │
+│   │   └── utils/
+│   │       ├── text_utils.py
+│   │       ├── skill_utils.py
+│   │       └── constants.py
+│   │
+│   ├── requirements.txt
+│   └── README.md
+│
+├── docs/
+│   ├── architecture.png
+│   ├── sequence_diagram.md
+│   └── sample_input_output.md
+│
+├── .env.example
+├── .gitignore
+└── README.md

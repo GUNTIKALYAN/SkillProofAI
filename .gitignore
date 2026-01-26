@@ -1,0 +1,8 @@
+__pycache__/
+.vscode/
+Documentation/
+.env
+.venv/
+*.pyc
+node_modules/
+docker-volumes/
