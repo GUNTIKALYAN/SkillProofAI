@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment files
+.env
+
+# Frontend & docs (not needed for backend image)
+frontend/
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CI metadata
+.github/
