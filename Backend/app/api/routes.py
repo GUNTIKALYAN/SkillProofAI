@@ -1,9 +1,9 @@
-from Backend.app.core.resume_parse import parse_resume
-from Backend.app.core.jd_analyzer import analyze_job_description
-from Backend.app.core.skill_mapper import map_skills
-from Backend.app.core.github_fetcher import fetch_github_evidence
-from Backend.app.core.evidence_validator import validate_skill_evidence
-from Backend.app.schemas.input_schema import AnalyzeRequest
+from app.core.resume_parse import parse_resume
+from app.core.jd_analyzer import analyze_job_description
+from app.core.skill_mapper import map_skills
+from app.core.github_fetcher import fetch_github_evidence
+from app.core.evidence_validator import validate_skill_evidence
+from app.schemas.input_schema import AnalyzeRequest
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import tempfile

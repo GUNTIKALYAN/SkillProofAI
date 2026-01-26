@@ -1,5 +1,5 @@
 from typing import Dict, List, Set
-from Backend.app.utils.constants import SKILL_IMPLICATIONS,SKILL_VOCABULARY
+from app.utils.constants import SKILL_IMPLICATIONS,SKILL_VOCABULARY
 
 # Skill Normalization Helpers
 

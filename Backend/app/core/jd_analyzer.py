@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from Backend.app.utils.constants import (
+from app.utils.constants import (
     REQUIRED_HEADERS,
     PREFERRED_HEADERS,
     SKILL_VOCABULARY
