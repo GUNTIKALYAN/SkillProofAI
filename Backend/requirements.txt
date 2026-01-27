@@ -8,5 +8,7 @@ requests
 python-dotenv
 pytest
 httpx
-pygraphviz
+langchain-core
 langgraph
+python-dotenv
+groq
