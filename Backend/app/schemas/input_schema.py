@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -23,13 +23,11 @@ class AnalyzeRequest(BaseModel):
         description="Whether to fetch GitHub evidence"
     )
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_schema_extra={
+    class Config:
+        json_schema_extra = {
             "example": {
                 "jd_text": "Looking for a Python developer with ML experience",
                 "github_username": "GUNTIKALYAN",
                 "include_github": True
             }
         }
-    )

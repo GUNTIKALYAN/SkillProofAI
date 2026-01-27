@@ -1,60 +1,61 @@
 from typing import Dict
 
 
-def validate_skill_evidence(jd_data: Dict,skill_mapping: Dict,github_evidence: Dict) -> Dict[str, Dict[str, str]]:
+def validate_skill_evidence(
+    jd_data: Dict,
+    skill_mapping: Dict,
+    github_evidence: Dict
+) -> Dict[str, Dict[str, str]]:
     """
-    Validates each JD skill using resume claims + GitHub evidence.
+    Intern-friendly skill evidence validation.
 
-    Output:
-    {
-      "skill": {
-        "status": "supported | partially_supported | unsupported",
-        "reason": "explanation"
-      }
-    }
+    Rules:
+    - Resume/project presence is valid evidence for interns
+    - GitHub strengthens evidence but is not mandatory
+    - Unsupported means truly no signal anywhere
     """
 
     results = {}
 
-    required_skills = set(jd_data.get("required", []))
-    preferred_skills = set(jd_data.get("preferred", []))
+    required = set(jd_data.get("required", []))
+    preferred = set(jd_data.get("preferred", []))
 
     matched = set(skill_mapping.get("matched", []))
-    missing = set(skill_mapping.get("missing", []))
 
-    all_jd_skills = required_skills.union(preferred_skills)
+    all_skills = required.union(preferred)
 
-    for skill in all_jd_skills:
-        evidence = github_evidence.get(skill, {})
+    for skill in all_skills:
+        gh = github_evidence.get(skill, {})
 
-        repos = evidence.get("repos", [])
-        recent = evidence.get("recent_activity", False)
+        repos = gh.get("repos", [])
+        recent = gh.get("recent_activity", False)
 
-        # CASE 1: Fully supported
-        if skill in matched and repos and recent:
+        in_resume = skill in matched
+        has_github_signal = bool(repos or recent)
+
+        # 1️⃣ Fully supported
+        if in_resume and has_github_signal:
             results[skill] = {
                 "status": "supported",
-                "reason": "Claimed in resume and backed by recent GitHub activity"
+                "reason": "Skill appears in resume/projects and is reinforced by GitHub activity"
             }
 
-        # CASE 2: Partially supported
-        elif (skill in matched and not repos) or (skill in missing and repos):
+        # 2️⃣ Resume-only OR GitHub-only → partially supported
+        elif in_resume or has_github_signal:
             results[skill] = {
                 "status": "partially_supported",
-                "reason": "Some evidence exists but not strong enough to fully support the claim"
+                "reason": "Skill is present in resume or has limited supporting evidence"
             }
 
-        # CASE 3: Unsupported
+        # 3️⃣ Truly unsupported
         else:
-            if skill in required_skills:
-                results[skill] = {
-                    "status": "unsupported",
-                    "reason": "Required skill with no resume or GitHub evidence"
-                }
-            else:
-                results[skill] = {
-                    "status": "unsupported",
-                    "reason": "Preferred skill without supporting evidence"
-                }
+            results[skill] = {
+                "status": "unsupported",
+                "reason": (
+                    "Required skill with no resume or GitHub evidence"
+                    if skill in required
+                    else "Preferred skill without supporting evidence"
+                )
+            }
 
     return results

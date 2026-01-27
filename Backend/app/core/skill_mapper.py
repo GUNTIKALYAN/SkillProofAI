@@ -1,5 +1,32 @@
 from typing import Dict, List, Set
+import re
 from app.utils.constants import SKILL_IMPLICATIONS,SKILL_VOCABULARY
+
+SKILL_SYNONYMS = {
+    "promptengineering": "prompt engineering",
+    "prompt engineer": "prompt engineering",
+    "llms": "llm",
+    "large language models": "llm",
+    "retrieval augmented generation": "rag",
+    "vector databases": "vector database",
+    "deep learning": "deep learning",
+    "ci cd": "ci/cd",
+    "restful apis": "rest api",
+    "rest api": "rest api",
+    "apis": "rest api",
+
+    "scikit learn": "scikit-learn",
+    "scikit-learn": "scikit-learn",
+
+    "rag": "rag",
+    "retrieval augmented generation": "rag",
+
+    "langchain": "langchain",
+    "langgraph": "langgraph",
+
+    "json apis": "rest api"
+}
+
 
 # Skill Normalization Helpers
 
@@ -7,7 +34,23 @@ def normalize_skill(skill: str) -> str:
     """
     Normalizes a skill string for comparison.
     """
-    return skill.lower().strip()
+    skill = skill.lower()
+    skill = skill.replace("&", "and")
+    skill = re.sub(r"[^a-z0-9\s]", " ", skill)  # remove punctuation
+    skill = re.sub(r"\s+", " ", skill).strip()
+    return skill
+
+def canonicalize_skill(skill: str) -> str:
+    """
+    Maps skill variants to a canonical form.
+    """
+    skill = normalize_skill(skill)
+
+    # Apply synonym mapping
+    if skill in SKILL_SYNONYMS:
+        return SKILL_SYNONYMS[skill]
+
+    return skill
 
 
 def extract_resume_skills(resume_data: Dict) -> Set[str]:
@@ -28,13 +71,13 @@ def extract_resume_skills(resume_data: Dict) -> Set[str]:
     #  Direct matches (exact skills)
     for skill in SKILL_VOCABULARY:
         if skill in combined_text:
-            claimed_skills.add(skill)
+            claimed_skills.add(canonicalize_skill(skill))
 
     #  Implicit matches (libraries → skills)
     for parent_skill, indicators in SKILL_IMPLICATIONS.items():
         for indicator in indicators:
             if indicator in combined_text:
-                claimed_skills.add(parent_skill)
+                claimed_skills.add(canonicalize_skill(parent_skill))
                 break  # one indicator is enough
 
     return claimed_skills
@@ -47,8 +90,8 @@ def extract_jd_skills(jd_data: Dict) -> Dict[str, Set[str]]:
     """
 
     return {
-        "required": set(normalize_skill(s) for s in jd_data.get("required", [])),
-        "preferred": set(normalize_skill(s) for s in jd_data.get("preferred", []))
+        "required": set(canonicalize_skill(s) for s in jd_data.get("required", [])),
+        "preferred": set(canonicalize_skill(s) for s in jd_data.get("preferred", []))
     }
 
 

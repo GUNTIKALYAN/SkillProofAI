@@ -4,7 +4,7 @@ from app.core.skill_mapper import map_skills
 from app.core.github_fetcher import fetch_github_evidence
 from app.core.evidence_validator import validate_skill_evidence
 from app.schemas.input_schema import AnalyzeRequest
-
+from app.services.analysis_service import run_full_analysis
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import tempfile
 import os
@@ -78,13 +78,8 @@ def map_skills_route(
 # -------------------------
 # Full Pipeline
 # -------------------------
-@router.post("/analyze")
-def analyze_full(
-    jd_text: str = Form(...),
-    github_username: str | None = Form(None),
-    include_github: bool = Form(True),
-    resume: UploadFile = File(...)
-):
+@router.post("/analyze_nollm")
+def analyze_full_nollm(jd_text: str = Form(...),github_username: str | None = Form(None),include_github: bool = Form(True),resume: UploadFile = File(...)):
     request = AnalyzeRequest(
         jd_text=jd_text,
         github_username=github_username,
@@ -119,6 +114,37 @@ def analyze_full(
             "github_evidence": github_evidence,
             "evidence_validation": validation
         }
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+@router.post("/analyze")
+def analyze_full_with_ai(
+    jd_text: str = Form(...),
+    github_username: str | None = Form(None),
+    include_github: bool = Form(True),
+    resume: UploadFile = File(...)
+):
+    request = AnalyzeRequest(
+        jd_text=jd_text,
+        github_username=github_username,
+        include_github=include_github
+    )
+
+    suffix = os.path.splitext(resume.filename)[1]
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(resume.file.read())
+            tmp_path = tmp.name
+
+        return run_full_analysis(
+            resume_path=tmp_path,
+            jd_text=request.jd_text,
+            github_username=request.github_username,
+            include_github=request.include_github
+        )
 
     finally:
         if os.path.exists(tmp_path):
