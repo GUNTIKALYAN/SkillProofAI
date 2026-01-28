@@ -3,6 +3,9 @@ FROM python:3.10-slim AS builder
 
 WORKDIR /app
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
@@ -20,6 +23,8 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 COPY --from=builder /usr/local /usr/local

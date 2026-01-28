@@ -4,10 +4,17 @@ services:
   backend:
     build:
       context: ./Backend
-      dockerfile: Dockerfile
     container_name: skillproof-backend
     ports:
       - "8000:8000"
-    env_file:
-      - ./Backend/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+    container_name: skillproof-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
     restart: unless-stopped
