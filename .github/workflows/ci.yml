@@ -1,4 +1,4 @@
-name: CI – Dockerized FastAPI
+name: CI – Dockerized SkillProof App
 
 on:
   push:
@@ -10,35 +10,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      
+      # Checkout
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Docker setup
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build image (no push yet)
+      # BACKEND
+
       - name: Build backend image
         run: |
           docker build -t skillproof-backend:ci ./Backend
 
-      # Run tests inside container
-      - name: Run tests
+      - name: Run backend tests
         run: |
-          docker run --rm skillproof-backend:ci pytest 
-      
-      # Login ONLY on main branch
-      - name: Login to DockerHub
+          docker run --rm skillproof-backend:ci pytest
+
+      # FRONTEND
+
+      - name: Build frontend image
+        run: |
+          docker build -t skillproof-frontend:ci ./Frontend
+
+      # DOCKER HUB LOGIN (main only)
+      - name: Login to Docker Hub
         if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Push ONLY on main branch
-      - name: Push image
+      # PUSH IMAGES (main only)
+      - name: Push backend image
         if: github.ref == 'refs/heads/main'
         run: |
-          docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-app:latest
-          docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-app:${{ github.sha }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-app:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-app:${{ github.sha }}
+          docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:latest
+          docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:${{ github.sha }}
+
+      - name: Push frontend image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker tag skillproof-frontend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:latest
+          docker tag skillproof-frontend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:${{ github.sha }}
