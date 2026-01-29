@@ -14,24 +14,33 @@ app.include_router(router, prefix="/api")
 # -------------------------
 # PATH RESOLUTION
 # -------------------------
-# main.py -> Backend/app/main.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Go up: app/ -> Backend/ -> project-root/
+# app/ → Backend/ → project-root/
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
 
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, "Frontend")
 STATIC_DIR = os.path.join(FRONTEND_DIR, "static")
 
 # -------------------------
-# STATIC FILES
+# STATIC FILES (SAFE)
 # -------------------------
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+else:
+    # This prevents pytest / CI crashes
+    print(f"⚠️ Static directory not found, skipping mount: {STATIC_DIR}")
 
 # -------------------------
-# SERVE FRONTEND
+# SERVE FRONTEND (SAFE)
 # -------------------------
 @app.get("/")
 def serve_frontend():
     index_path = os.path.join(FRONTEND_DIR, "index.html")
-    return FileResponse(index_path)
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+
+    return {
+        "status": "ok",
+        "message": "Frontend not available in this environment"
+    }
