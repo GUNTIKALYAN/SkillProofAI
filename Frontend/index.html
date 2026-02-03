@@ -134,8 +134,12 @@
               <div class="match-circle">
                 <svg viewBox="0 0 36 36" class="circular-chart">
                   <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                  <path class="circle" id="matchCircle" stroke-dasharray="72, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                  <text x="18" y="20.35" class="percentage" id="matchPercentage">72%</text>
+                  <path class="circle" id="matchCircle" stroke-dasharray="0, 100"
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831
+                          a 15.9155 15.9155 0 0 1 0 -31.831"/>
+
+                  <text x="18" y="20.35" class="percentage" id="matchPercentage">0%</text>
+
                 </svg>
               </div>
               <div class="skill-counts">
@@ -351,7 +355,7 @@
                 </div>
                 <div class="ats-metric">
                   <span class="metric-label">Keyword Match Rate</span>
-                  <span class="metric-value" id="keywordMatch">72%</span>
+                  <span class="metric-value" id="keywordMatchRate">0%</span>
                 </div>
               </div>
               <div class="rejection-reasons">
@@ -368,7 +372,7 @@
           <!-- 8. Action Plan -->
           <div class="card action-plan-card">
             <div class="card-header">
-              <h3>🚀 30-Day Action Plan</h3>
+              <h3>🚀 Action Plan</h3>
               <span class="card-subtitle">Turn gaps into strengths</span>
             </div>
             <div class="action-plan-list" id="actionPlanList">

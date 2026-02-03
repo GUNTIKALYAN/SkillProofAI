@@ -107,6 +107,10 @@ analyzeForm.addEventListener("submit", async e => {
 
     const data = await res.json();
 
+    // ✅ DEBUG: Log the full response
+    console.log("FULL API RESPONSE:", data);
+    console.log("ATS DATA:", data.ats_data);
+
     renderResults(data);
     emptyState.style.display = "none";
     resultsContent.style.display = "block";
@@ -148,10 +152,14 @@ function renderResults(data) {
   if (data.ai_analysis) {
     renderSkillAudit(data.ai_analysis.skill_audit || {});
     renderGapAnalysis(data.ai_analysis.gap_analysis || {});
-    renderATSImpact(data.ai_analysis.ats_impact || {});
+    renderATSImpact(
+      data.ai_analysis.ats_impact || {},
+      data.ats_data  // ✅ Pass the ats_data object
+    );
     renderActionPlan(data.ai_analysis.action_plan?.actions || []);
   }
 }
+
 
 // ================= SKILL SUMMARY =================
 function renderSkillSummary(mapping) {
@@ -265,18 +273,36 @@ function renderGapAnalysis(gaps) {
     ).join("");
 }
 
-// ================= ATS IMPACT =================
-function renderATSImpact(ats) {
+// ================= ATS IMPACT ================= 
+// ✅ FIXED VERSION
+function renderATSImpact(atsImpact, atsData) {
+  console.log("renderATSImpact called with:", { atsImpact, atsData });
+
+  // ATS Risk Level
+  const riskLevel = atsImpact.ats_risk || "medium";
   document.getElementById("atsRiskIndicator").innerHTML =
-    `<span class="risk-level ${ats.ats_risk}">
-      ${ats.ats_risk?.toUpperCase()}
-     </span>`;
+    `<span class="risk-level ${riskLevel}">${riskLevel.toUpperCase()}</span>`;
 
-  document.getElementById("scoreGain").textContent =
-    `+${ats.estimated_score_gain || 0}`;
+  // Score Gain
+  const scoreGain = atsImpact.estimated_score_gain || 0;
+  document.getElementById("scoreGain").textContent = `+${scoreGain}`;
 
+  // ✅ CRITICAL FIX: Get keyword_match_rate from atsData
+  let keywordMatchRate = 0;
+  
+  if (atsData && typeof atsData.keyword_match_rate === "number") {
+    keywordMatchRate = atsData.keyword_match_rate;
+  } else if (atsData && typeof atsData.keyword_match_rate === "string") {
+    keywordMatchRate = parseInt(atsData.keyword_match_rate, 10);
+  }
+
+  console.log("Keyword Match Rate:", keywordMatchRate);
+  document.getElementById("keywordMatchRate").textContent = `${keywordMatchRate}%`;
+
+  // Rejection Reasons
+  const rejectionReasons = atsImpact.rejection_reasons || [];
   document.getElementById("rejectionReasons").innerHTML =
-    (ats.rejection_reasons || []).map(r => `<li>${r}</li>`).join("");
+    rejectionReasons.map(r => `<li>${r}</li>`).join("") || "<li>No rejection triggers detected</li>";
 }
 
 // ================= ACTION PLAN =================

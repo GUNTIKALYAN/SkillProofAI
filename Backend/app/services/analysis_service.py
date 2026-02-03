@@ -3,18 +3,10 @@ from app.core.jd_analyzer import analyze_job_description
 from app.core.skill_mapper import map_skills
 from app.core.github_fetcher import fetch_github_evidence
 from app.core.evidence_validator import validate_skill_evidence
+from app.core.ats_scorer import compute_ats_score
+from app.core.jd_utils import extract_jd_skills
+from app.core.resume_utils import extract_resume_skills
 from app.agents.agent_runner import run_agents
-
-
-def clean_ai_output(ai_output: dict) -> dict:
-    """
-    Removes prompt-leaked keys like 'output_format'.
-    """
-    if isinstance(ai_output, dict):
-        for _, value in ai_output.items():
-            if isinstance(value, dict):
-                value.pop("output_format", None)
-    return ai_output
 
 
 def run_full_analysis(
@@ -24,16 +16,30 @@ def run_full_analysis(
     include_github: bool
 ):
     # -------------------------
-    # Deterministic pipeline
+    # 1. Parse inputs
     # -------------------------
     resume_data = parse_resume(resume_path)
     jd_data = analyze_job_description(jd_text)
+
+    # ✅ CRITICAL: normalize skills for BM25
+    resume_skills = extract_resume_skills(resume_data)
+    jd_skills = extract_jd_skills(jd_data)
+
+    # -------------------------
+    # 2. Skill mapping (logic layer)
+    # -------------------------
     skill_mapping = map_skills(resume_data, jd_data)
 
+    # -------------------------
+    # 3. GitHub evidence (optional)
+    # -------------------------
     github_evidence = {}
     if include_github and github_username:
         github_evidence = fetch_github_evidence(github_username)
 
+    # -------------------------
+    # 4. Evidence validation
+    # -------------------------
     validation = validate_skill_evidence(
         jd_data,
         skill_mapping,
@@ -41,27 +47,31 @@ def run_full_analysis(
     )
 
     # -------------------------
-    # Build AI agent inputs (CRITICAL FIX)
+    # 5. Prepare agent inputs
     # -------------------------
 
-    # 1. Skill evidence for SkillAuditAgent
+    # Skill evidence for SkillAuditAgent
     skill_evidence = {
         skill: {"status": data["status"]}
         for skill, data in validation.items()
     }
 
-    # 2. Missing skills for GapAnalysisAgent
+    # Missing skills (DICT required by agents)
     missing_skills = {
         skill: data["reason"]
         for skill, data in validation.items()
         if data["status"] == "unsupported"
     }
 
-    # 3. ATS input
-    ats_data = {
-        "current_score": 70,  # baseline heuristic
-        "missing_keywords": list(missing_skills.keys())
-    }
+
+    # -------------------------
+    # 6. ATS scoring (BM25 ✅)
+    # -------------------------
+    ats_data = compute_ats_score(
+        jd_skills=jd_skills,
+        resume_skills=resume_skills,
+        missing_skills=missing_skills
+    )
 
     ai_input = {
         "skill_evidence": skill_evidence,
@@ -70,16 +80,16 @@ def run_full_analysis(
     }
 
     # -------------------------
-    # Run multi-agent graph
+    # 7. Run AI agents
     # -------------------------
     ai_analysis = run_agents(ai_input)
-    ai_analysis = clean_ai_output(ai_analysis)
 
     # -------------------------
-    # Final API response
+    # 8. Final API response
     # -------------------------
     return {
         "skill_mapping": skill_mapping,
         "evidence_validation": validation,
+        "ats_data": ats_data,      
         "ai_analysis": ai_analysis
     }

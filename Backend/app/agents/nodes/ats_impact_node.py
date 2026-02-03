@@ -4,7 +4,7 @@ from app.agents.graph.graph_state import SkillProofState
 def ats_impact_node(state: SkillProofState):
     agent = ATSImpactAgent()
     result = agent.run_agent({
-        "missing_skills": state.missing_skills,
+        "missing_skills": list(state.missing_skills.keys()),
         "ats_data": state.ats_data
     })
     return {"ats_impact": result}

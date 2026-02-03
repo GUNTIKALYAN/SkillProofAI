@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class SkillProofState(BaseModel):
     skill_evidence: Dict[str, Any]
-    missing_skills: Dict[str, Any]
+    missing_skills: Dict[str, str]
     ats_data: Dict[str, Any]
 
     skill_audit: Dict[str, Any] = {}
