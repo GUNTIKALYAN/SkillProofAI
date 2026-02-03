@@ -263,12 +263,21 @@ Potential enhancements that can be added without changing the core design:
 
 The current architecture is built to support these extensions cleanly.
 
+## License
+
+This project is licensed under the **MIT License**.
+
+You are free to use, modify, and distribute this project for personal and commercial purposes, with proper attribution.  
+See the [LICENSE](LICENSE) file for details.
+
+
 ---
 <div align="center">
 
  *Happy Learning*
 
 </div>
+
 
 
 
