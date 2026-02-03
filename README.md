@@ -264,6 +264,12 @@ Potential enhancements that can be added without changing the core design:
 The current architecture is built to support these extensions cleanly.
 
 ---
-Happy Learning 🚀
+<div align="center">
+
+ *Happy Learning*
+
+</div>
+
+
 
 
