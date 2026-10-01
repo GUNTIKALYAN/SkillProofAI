@@ -29,9 +29,18 @@ class ATSVectorScorer:
         rs_norm = [normalize_text(s) for s in resume_skills if s and s.strip()]
 
         if not jd_norm or not rs_norm:
-            return {"similarities": {}, "matched": [], "match_rate": 0}
+            return {"similarities": {}, "matched": [], "match_rate": 0, "available": True}
 
-        model = self._get_model()
+        try:
+            model = self._get_model()
+        except (ImportError, OSError) as exc:
+            print("SEMANTIC SCORER UNAVAILABLE:", exc)
+            return {
+                "similarities": {},
+                "matched": [],
+                "match_rate": None,
+                "available": False,
+            }
 
         jd_emb = model.encode(jd_norm, normalize_embeddings=True)
         rs_emb = model.encode(rs_norm, normalize_embeddings=True)
@@ -54,5 +63,6 @@ class ATSVectorScorer:
         return {
             "similarities": similarities,
             "matched": matched,
-            "match_rate": match_rate
+            "match_rate": match_rate,
+            "available": True,
         }

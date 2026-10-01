@@ -3,418 +3,227 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SkillProof AI - Resume Analyzer Dashboard</title>
+  <title>SkillProof AI — Evidence-based skill audit</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233659D9'/%3E%3Cpath d='M8 17.5 13 22.5 24 10' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-  <div class="dashboard-container">
-    <!-- Header -->
-    <header class="header">
-      <div class="logo">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-          <path d="M2 17l10 5 10-5"></path>
-          <path d="M2 12l10 5 10-5"></path>
-        </svg>
-        <span>SkillProof AI</span>
-      </div>
-      <nav class="nav-links">
-        <a href="#" class="active">Dashboard</a>
-        <a href="#">History</a>
-        <a href="#">Settings</a>
-      </nav>
-    </header>
-
-    <main class="main-content">
-      <!-- Left Column - Upload Panel -->
-      <aside class="upload-panel" id="uploadPanel">
-        <div class="panel-header">
-          <h2>📄 Upload & Analyze</h2>
-          <p class="subtitle">Get AI-powered skill insights</p>
-        </div>
-
-        <form id="analyzeForm" class="upload-form">
-          <!-- Resume Upload -->
-          <div class="form-group">
-            <label>Resume (PDF/DOCX)</label>
-            <div class="file-upload" id="fileDropZone">
-              <input type="file" id="resumeFile" accept=".pdf,.docx" hidden>
-              <div class="upload-placeholder" id="uploadPlaceholder">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <span>Drop your resume here or <strong>browse</strong></span>
-                <small>PDF or DOCX up to 5MB</small>
-              </div>
-              <div class="file-selected" id="fileSelected" style="display: none;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
-                <span id="fileName">resume.pdf</span>
-                <button type="button" id="removeFile" class="remove-btn">&times;</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Job Description -->
-          <div class="form-group">
-            <label>Job Description</label>
-            <textarea id="jobDescription" placeholder="Paste the job description here..." rows="6"></textarea>
-          </div>
-
-          <!-- GitHub Username -->
-          <div class="form-group">
-            <label>GitHub Username <span class="optional">(optional)</span></label>
-            <div class="input-with-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-              </svg>
-              <input type="text" id="githubUsername" placeholder="e.g., johndoe">
-            </div>
-          </div>
-
-          <!-- GitHub Toggle -->
-          <div class="toggle-group">
-            <label class="toggle">
-              <input type="checkbox" id="includeGithub" checked>
-              <span class="toggle-slider"></span>
-            </label>
-            <span>Include GitHub evidence in analysis</span>
-          </div>
-
-          <!-- Submit Button -->
-          <button type="submit" class="analyze-btn" id="analyzeBtn">
-            <span class="btn-text">Analyze Resume</span>
-            <span class="btn-loader" style="display: none;">
-              <svg class="spinner" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="32" stroke-linecap="round"/>
-              </svg>
-              Analyzing...
-            </span>
-          </button>
-
-          <!-- Error State -->
-          <div class="error-message" id="errorMessage" style="display: none;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            <span id="errorText">Something went wrong. Please try again.</span>
-          </div>
-        </form>
-      </aside>
-
-      <!-- Right Column - Results Dashboard -->
-      <section class="results-panel" id="resultsPanel">
-        <!-- Empty State -->
-        <div class="empty-state" id="emptyState">
-          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"></path>
-            <rect x="9" y="3" width="6" height="4" rx="1"></rect>
-            <path d="M9 12h6"></path>
-            <path d="M9 16h6"></path>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 6 9 17l-5-5"></path>
           </svg>
-          <h3>No Analysis Yet</h3>
-          <p>Upload your resume and paste a job description to get started.</p>
+        </span>
+        <div>
+          <p class="brand-name">SkillProof AI</p>
+          <p class="brand-tag">Evidence-based skill audit</p>
+        </div>
+      </div>
+      <button type="button" class="button button-quiet" id="aboutBtn">About</button>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <section id="inputView" aria-labelledby="pageTitle">
+      <div class="page-intro">
+        <h1 id="pageTitle">Validate your skills for the role</h1>
+        <p class="lede">Compare your resume with the job requirements and review public GitHub evidence.</p>
+      </div>
+
+      <form id="analyzeForm" class="input-layout" novalidate>
+        <div class="input-main">
+          <section class="card" aria-labelledby="resumeLabel">
+            <div class="card-heading">
+              <h2 id="resumeLabel">Resume</h2>
+              <p>PDF or DOCX, up to 5 MB.</p>
+            </div>
+            <div
+              class="dropzone"
+              id="fileDropZone"
+              tabindex="0"
+              role="button"
+              aria-controls="resumeFile"
+              aria-describedby="resumeHint"
+            >
+              <div class="dropzone-empty" id="uploadPlaceholder">
+                <span class="dropzone-title" id="dropzoneTitle">Drop a resume here, or browse</span>
+                <span class="dropzone-hint" id="resumeHint">PDF or DOCX only</span>
+              </div>
+            </div>
+            <input class="visually-hidden" type="file" id="resumeFile" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+            <div class="dropzone-file" id="fileSelected" hidden>
+              <span id="fileName"></span>
+              <button type="button" class="button button-quiet" id="removeFile">Remove</button>
+            </div>
+            <p class="field-error" id="resumeError" hidden></p>
+          </section>
+
+          <section class="card" aria-labelledby="jdLabel">
+            <div class="card-heading">
+              <h2 id="jdLabel">Job description</h2>
+              <p>Paste the description. A URL is not required.</p>
+            </div>
+            <label class="visually-hidden" for="jobDescription">Job description</label>
+            <textarea
+              id="jobDescription"
+              rows="12"
+              placeholder="Example: Required: Python, SQL, and REST APIs. Preferred: Docker."
+            ></textarea>
+            <div class="field-meta">
+              <p class="field-error" id="jdError" hidden></p>
+              <p class="helper" id="jdCount">0 characters</p>
+            </div>
+          </section>
         </div>
 
-        <!-- Results Content (hidden initially) -->
-        <div class="results-content" id="resultsContent" style="display: none;">
-          
-          <!-- 2. Skill Match Summary -->
-          <div class="card skill-summary-card">
-            <div class="card-header">
-              <h3>🎯 Skill Match Summary</h3>
+        <aside class="input-side">
+          <section class="card" aria-labelledby="githubLabel">
+            <div class="card-heading">
+              <h2 id="githubLabel">GitHub profile <span class="optional">Optional</span></h2>
+              <p>Public repositories only. Private work and experience that is not on GitHub will not appear.</p>
             </div>
-            <div class="skill-summary-content">
-              <div class="match-circle">
-                <svg viewBox="0 0 36 36" class="circular-chart">
-                  <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                  <path class="circle" id="matchCircle" stroke-dasharray="0, 100"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831
-                          a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <label for="githubUsername">Username</label>
+            <input type="text" id="githubUsername" autocomplete="off" spellcheck="false" placeholder="octocat">
+            <label class="check">
+              <input type="checkbox" id="includeGithub" checked>
+              <span>Include public GitHub evidence</span>
+            </label>
+          </section>
 
-                  <text x="18" y="20.35" class="percentage" id="matchPercentage">0%</text>
+          <section class="card card-quiet" aria-labelledby="receiveLabel">
+            <h2 id="receiveLabel">What you'll receive</h2>
+            <ul class="receive-list">
+              <li>A skill-by-skill evidence review</li>
+              <li>Role-specific gaps and where evidence is thin</li>
+              <li>A practical improvement plan</li>
+            </ul>
+          </section>
 
-                </svg>
-              </div>
-              <div class="skill-counts">
-                <div class="count-item matched">
-                  <span class="count-number" id="matchedCount">8</span>
-                  <span class="count-label">✅ Matched</span>
-                </div>
-                <div class="count-item missing">
-                  <span class="count-number" id="missingCount">3</span>
-                  <span class="count-label">❌ Missing</span>
-                </div>
-                <div class="count-item overclaimed">
-                  <span class="count-number" id="overclaimedCount">2</span>
-                  <span class="count-label">⚠️ Overclaimed</span>
-                </div>
-              </div>
-            </div>
+          <div class="submit-block">
+            <button type="submit" class="button button-primary" id="analyzeBtn" disabled>
+              <span class="btn-text">Run skill analysis</span>
+              <span class="btn-loader" hidden>Analyzing…</span>
+            </button>
+            <p class="privacy">The resume and job description are sent to this app for the analysis. The uploaded file is deleted after the run and is not saved on the server.</p>
           </div>
 
-          <!-- 3. Skill Mapping Table -->
-          <div class="card">
-            <div class="card-header">
-              <h3>📊 Skill Mapping</h3>
-              <span class="card-subtitle">Truth table of your skills</span>
-            </div>
-            <div class="table-container">
-              <table class="skill-table">
-                <thead>
-                  <tr>
-                    <th>Skill</th>
-                    <th>Status</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody id="skillTableBody">
-                  <tr>
-                    <td>Python</td>
-                    <td><span class="status-badge matched">Matched</span></td>
-                    <td><span class="source-tag">Resume</span><span class="source-tag github">GitHub</span></td>
-                  </tr>
-                  <tr>
-                    <td>PyTorch</td>
-                    <td><span class="status-badge missing">Missing</span></td>
-                    <td><span class="source-tag jd">JD Required</span></td>
-                  </tr>
-                  <tr>
-                    <td>Docker</td>
-                    <td><span class="status-badge overclaimed">Overclaimed</span></td>
-                    <td><span class="source-tag">Resume</span></td>
-                  </tr>
-                  <tr>
-                    <td>React</td>
-                    <td><span class="status-badge matched">Matched</span></td>
-                    <td><span class="source-tag">Resume</span><span class="source-tag github">GitHub</span></td>
-                  </tr>
-                  <tr>
-                    <td>AWS</td>
-                    <td><span class="status-badge partial">Partial</span></td>
-                    <td><span class="source-tag">Resume</span></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="banner banner-error" id="formError" hidden role="alert">
+            <p id="formErrorText"></p>
+            <button type="button" class="button button-secondary" id="retryBtn">Try again</button>
           </div>
+        </aside>
+      </form>
+    </section>
 
-          <!-- 4. Evidence Validation Panel -->
-          <div class="card">
-            <div class="card-header">
-              <h3>🔍 Evidence Validation</h3>
-              <span class="card-subtitle">Proof of your skills</span>
-            </div>
-            <div class="evidence-list" id="evidenceList">
-              <div class="evidence-item">
-                <div class="evidence-header">
-                  <span class="skill-name">Python</span>
-                  <span class="evidence-badge supported">Supported</span>
-                </div>
-                <p class="evidence-reason">Found in 12 GitHub repositories with recent commits. Consistent usage across multiple projects.</p>
-                <div class="evidence-meta">
-                  <span class="repo-count">📁 12 repos</span>
-                  <span class="activity-indicator active">🟢 Active (last 30 days)</span>
-                </div>
-              </div>
-              <div class="evidence-item">
-                <div class="evidence-header">
-                  <span class="skill-name">Docker</span>
-                  <span class="evidence-badge partial">Partial</span>
-                </div>
-                <p class="evidence-reason">Mentioned in resume but limited GitHub evidence. Only 1 Dockerfile found.</p>
-                <div class="evidence-meta">
-                  <span class="repo-count">📁 1 repo</span>
-                  <span class="activity-indicator stale">🟡 Stale (6+ months)</span>
-                </div>
-              </div>
-              <div class="evidence-item">
-                <div class="evidence-header">
-                  <span class="skill-name">Kubernetes</span>
-                  <span class="evidence-badge unsupported">Unsupported</span>
-                </div>
-                <p class="evidence-reason">Listed on resume but no GitHub evidence found. Consider adding projects.</p>
-                <div class="evidence-meta">
-                  <span class="repo-count">📁 0 repos</span>
-                  <span class="activity-indicator none">⚫ No activity</span>
-                </div>
-              </div>
-            </div>
-          </div>
+    <section id="loadingView" hidden aria-live="polite" aria-busy="true">
+      <div class="card loading-card">
+        <div class="spinner" aria-hidden="true"></div>
+        <h2>Analyzing your profile</h2>
+        <p>The request reads your resume and the job description, checks public GitHub evidence when a username is included, then prepares the report.</p>
+        <p class="helper">This may take a moment. The free server can take longer to wake up if it has been idle.</p>
+      </div>
+    </section>
 
-          <!-- 5. AI Skill Audit -->
-          <div class="card">
-            <div class="card-header">
-              <h3>🤖 AI Skill Audit</h3>
-              <span class="card-subtitle">Deep analysis of each skill</span>
-            </div>
-            <div class="accordion" id="skillAuditAccordion">
-              <div class="accordion-item">
-                <button class="accordion-trigger" data-target="audit1">
-                  <span class="trigger-content">
-                    <span class="skill-name">Python</span>
-                    <span class="credibility high">High Credibility</span>
-                  </span>
-                  <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-                <div class="accordion-content" id="audit1">
-                  <p>Strong evidence of Python expertise across multiple dimensions. Resume mentions 5+ years of experience, corroborated by extensive GitHub activity including contributions to popular open-source libraries. Code quality indicators (docstrings, type hints, testing) suggest professional-level proficiency.</p>
-                </div>
-              </div>
-              <div class="accordion-item">
-                <button class="accordion-trigger" data-target="audit2">
-                  <span class="trigger-content">
-                    <span class="skill-name">Machine Learning</span>
-                    <span class="credibility medium">Medium Credibility</span>
-                  </span>
-                  <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-                <div class="accordion-content" id="audit2">
-                  <p>Resume claims ML experience but GitHub shows limited practical implementations. Found 2 Jupyter notebooks with basic classification models. No production-level ML code detected. Recommend adding more substantial ML projects to strengthen this claim.</p>
-                </div>
-              </div>
-              <div class="accordion-item">
-                <button class="accordion-trigger" data-target="audit3">
-                  <span class="trigger-content">
-                    <span class="skill-name">System Design</span>
-                    <span class="credibility low">Low Credibility</span>
-                  </span>
-                  <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-                <div class="accordion-content" id="audit3">
-                  <p>Claimed on resume but no supporting evidence found. No architecture documentation, no microservices implementations, no infrastructure-as-code. This is a significant credibility gap for senior roles.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 6. Gap Analysis -->
-          <div class="card">
-            <div class="card-header">
-              <h3>⚠️ Gap Analysis</h3>
-              <span class="card-subtitle">What's blocking your selection</span>
-            </div>
-            <div class="gap-sections">
-              <div class="gap-section critical">
-                <h4>🔴 Critical Gaps</h4>
-                <ul class="gap-list" id="criticalGaps">
-                  <li>
-                    <strong>PyTorch/TensorFlow</strong>
-                    <span>Required for ML Engineer role. No evidence found.</span>
-                  </li>
-                  <li>
-                    <strong>Production ML Deployment</strong>
-                    <span>JD requires MLOps experience. Missing from profile.</span>
-                  </li>
-                </ul>
-              </div>
-              <div class="gap-section secondary">
-                <h4>🟡 Secondary Gaps</h4>
-                <ul class="gap-list" id="secondaryGaps">
-                  <li>
-                    <strong>Kubernetes</strong>
-                    <span>Preferred skill. Would strengthen application.</span>
-                  </li>
-                  <li>
-                    <strong>Apache Spark</strong>
-                    <span>Nice-to-have for big data processing.</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- 7. ATS Impact Panel -->
-          <div class="card ats-card">
-            <div class="card-header">
-              <h3>📈 ATS Impact Assessment</h3>
-            </div>
-            <div class="ats-content">
-              <div class="ats-risk-meter">
-                <div class="risk-label">ATS Risk Level</div>
-                <div class="risk-indicator" id="atsRiskIndicator">
-                  <span class="risk-level medium">MEDIUM</span>
-                </div>
-              </div>
-              <div class="ats-metrics">
-                <div class="ats-metric">
-                  <span class="metric-label">Estimated Score Gain</span>
-                  <span class="metric-value positive" id="scoreGain">+18 points</span>
-                </div>
-                <div class="ats-metric">
-                  <span class="metric-label">Keyword Match Rate</span>
-                  <span class="metric-value" id="keywordMatchRate">0%</span>
-                </div>
-              </div>
-              <div class="rejection-reasons">
-                <h4>Potential Rejection Triggers</h4>
-                <ul id="rejectionReasons">
-                  <li>Missing required skill: PyTorch</li>
-                  <li>Experience level mismatch: JD requires 5+ years ML</li>
-                  <li>No quantified achievements in ML domain</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- 8. Action Plan -->
-          <div class="card action-plan-card">
-            <div class="card-header">
-              <h3>🚀 Action Plan</h3>
-              <span class="card-subtitle">Turn gaps into strengths</span>
-            </div>
-            <div class="action-plan-list" id="actionPlanList">
-              <div class="action-item">
-                <div class="action-week">Week 1</div>
-                <div class="action-content">
-                  <div class="action-skill">PyTorch</div>
-                  <div class="action-task">Complete PyTorch fundamentals course and push 2 tutorial projects to GitHub</div>
-                  <div class="action-evidence">📌 Expected: 2 new repos with neural network implementations</div>
-                </div>
-              </div>
-              <div class="action-item">
-                <div class="action-week">Week 2</div>
-                <div class="action-content">
-                  <div class="action-skill">ML Deployment</div>
-                  <div class="action-task">Deploy a model using FastAPI + Docker. Document the architecture.</div>
-                  <div class="action-evidence">📌 Expected: 1 repo with Dockerfile, API code, and README</div>
-                </div>
-              </div>
-              <div class="action-item">
-                <div class="action-week">Week 3</div>
-                <div class="action-content">
-                  <div class="action-skill">Kubernetes</div>
-                  <div class="action-task">Create K8s manifests for your ML service. Add Helm charts.</div>
-                  <div class="action-evidence">📌 Expected: k8s/ folder with deployment, service, ingress YAML</div>
-                </div>
-              </div>
-              <div class="action-item">
-                <div class="action-week">Week 4</div>
-                <div class="action-content">
-                  <div class="action-skill">Portfolio Polish</div>
-                  <div class="action-task">Update resume with new projects. Add metrics and outcomes.</div>
-                  <div class="action-evidence">📌 Expected: Updated resume matching 85%+ of JD requirements</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
+    <section id="reportView" hidden aria-labelledby="reportTitle">
+      <div class="report-header">
+        <div>
+          <p class="eyebrow">Skill audit</p>
+          <h2 id="reportTitle">Target role</h2>
+          <ul class="meta-row">
+            <li id="resumeMeta"></li>
+            <li id="githubMeta"></li>
+            <li id="generatedMeta"></li>
+          </ul>
         </div>
-      </section>
-    </main>
-  </div>
+        <button type="button" class="button button-secondary" id="newAnalysisBtn">New analysis</button>
+      </div>
+
+      <div class="banner" id="partialBanner" hidden></div>
+
+      <div class="metric-grid" id="metricGrid"></div>
+      <p class="summary" id="summaryNarrative"></p>
+
+      <div class="tabs" role="tablist" aria-label="Report sections">
+        <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true">Overview</button>
+        <button type="button" class="tab" role="tab" id="tab-skills" aria-controls="panel-skills" aria-selected="false" tabindex="-1">Skills audit</button>
+        <button type="button" class="tab" role="tab" id="tab-gaps" aria-controls="panel-gaps" aria-selected="false" tabindex="-1">Gap analysis</button>
+        <button type="button" class="tab" role="tab" id="tab-actions" aria-controls="panel-actions" aria-selected="false" tabindex="-1">Action plan</button>
+        <button type="button" class="tab" role="tab" id="tab-coverage" aria-controls="panel-coverage" aria-selected="false" tabindex="-1">Keyword coverage</button>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+        <section class="card">
+          <h3>How to read this report</h3>
+          <p id="overviewNote"></p>
+          <h3 class="section-gap">On the resume, not in this job description</h3>
+          <p class="helper">These skills were found in the resume scan and were not in the job's required or preferred list. They are not treated as gaps for this role.</p>
+          <ul class="chip-list" id="overclaimedList"></ul>
+        </section>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-skills" aria-labelledby="tab-skills" hidden>
+        <section class="card">
+          <div class="toolbar">
+            <label class="search">
+              <span class="visually-hidden">Search skills</span>
+              <input type="search" id="skillSearch" placeholder="Search skills">
+            </label>
+            <div class="filters" id="skillFilters" role="group" aria-label="Filter skills"></div>
+            <label class="sort">
+              <span class="visually-hidden">Sort skills</span>
+              <select id="skillSort">
+                <option value="status">Sort by status</option>
+                <option value="name">Sort by name</option>
+              </select>
+            </label>
+          </div>
+          <div class="skill-list" id="skillList"></div>
+          <p class="empty-copy" id="skillEmpty" hidden>No skills match this filter.</p>
+        </section>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-gaps" aria-labelledby="tab-gaps" hidden>
+        <section class="card" id="gapContent"></section>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-actions" aria-labelledby="tab-actions" hidden>
+        <section class="card" id="actionContent"></section>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-coverage" aria-labelledby="tab-coverage" hidden>
+        <section class="card" id="coverageContent"></section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="aboutDialog" class="sheet sheet-center">
+    <div class="sheet-header">
+      <h2>About SkillProof AI</h2>
+      <button type="button" class="icon-button" id="aboutClose" aria-label="Close about">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <p>SkillProof compares a resume with a job description and, when you provide a username, public GitHub activity.</p>
+      <p>A status of “Not found” means the reviewed sources did not show that skill. It is not a judgment that you lack the skill. Private repositories, workplace code, and experience that is not on the resume or GitHub are outside this review.</p>
+      <p>Keyword coverage is an overlap estimate. It is not an employer's applicant-tracking score and it does not predict whether an application will pass screening.</p>
+    </div>
+  </dialog>
+
+  <dialog id="skillDialog" class="sheet">
+    <div class="sheet-header">
+      <h2 id="skillDialogTitle">Skill</h2>
+      <button type="button" class="icon-button" id="skillDialogClose" aria-label="Close skill details">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="skillDialogBody"></div>
+  </dialog>
 
   <script src="/static/js/script.js"></script>
 </body>

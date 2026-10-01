@@ -25,7 +25,8 @@ def compute_ats_score(jd_skills, resume_skills, missing_skills):
     vector = ATSVectorScorer(threshold=SEMANTIC_MATCH_THRESHOLD)
     vector_result = vector.score(normalized_jd, resume_skills)
 
-    semantic_matched = set(vector_result["matched"])
+    semantic_available = vector_result.get("available", True)
+    semantic_matched = set(vector_result["matched"]) if semantic_available else set()
 
     # -------------------------
     # 3. Hybrid fusion
@@ -56,6 +57,7 @@ def compute_ats_score(jd_skills, resume_skills, missing_skills):
         "bm25_match_rate": bm25_match_rate,
         "semantic_similarities": vector_result["similarities"],
         "semantic_match_rate": vector_result["match_rate"],
+        "semantic_available": semantic_available,
         "hybrid_matched_skills": sorted(hybrid_matched),
         "missing_skill_count": len(missing_skills)
     }
