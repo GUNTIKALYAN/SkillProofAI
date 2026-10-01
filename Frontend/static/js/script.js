@@ -1,5 +1,16 @@
 // ================= CONFIG =================
-const API_BASE = "http://127.0.0.1:8000/api";
+function apiBase() {
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") {
+    return "http://127.0.0.1:8000/api";
+  }
+  if (host.endsWith(".onrender.com")) {
+    return `${window.location.origin}/api`;
+  }
+  return "https://skillproofai.onrender.com/api";
+}
+
+const API_BASE = apiBase();
 
 // ================= DOM ELEMENTS =================
 const fileDropZone = document.getElementById("fileDropZone");

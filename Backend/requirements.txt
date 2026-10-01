@@ -13,3 +13,4 @@ langgraph
 python-dotenv
 groq
 rank-bm25
+sentence-transformers

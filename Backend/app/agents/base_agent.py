@@ -21,7 +21,7 @@ class BaseAgent:
         client = self._get_client()
 
         response = client.chat.completions.create(
-            model=os.getenv("LLAMA_MODEL", "llama-3.1-8b-instant"),
+            model=os.getenv("LLAMA_MODEL", "openai/gpt-oss-20b"),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(payload)}
