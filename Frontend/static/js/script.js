@@ -186,16 +186,18 @@ async function runAnalysis() {
   hideFormError();
 
   try {
-    const response = await fetch(`${API_BASE}/analyze`, {
+    const response = await fetch(`${API_BASE}/analyses`, {
       method: "POST",
+      headers: authHeaders(),
       body: formData
     });
     if (!response.ok) {
       const raw = await response.text();
       throw new Error(cleanError(raw) || "The analysis did not finish.");
     }
-    const data = await response.json();
-    renderReport(data, {
+    const accepted = await response.json();
+    const data = await pollAnalysis(accepted.job_id);
+    renderReport(data.result || {}, {
       filename: selectedFile.name,
       githubUsername: useGithub ? githubUsername : "",
       generatedAt: new Date()
@@ -210,6 +212,29 @@ async function runAnalysis() {
     formError.hidden = false;
     showInput();
   }
+}
+
+function authHeaders() {
+  const token = window.localStorage.getItem("access_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function pollAnalysis(jobId) {
+  const deadline = Date.now() + 180000;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${API_BASE}/analyses/${jobId}`, { headers: authHeaders() });
+    if (!response.ok) {
+      const raw = await response.text();
+      throw new Error(cleanError(raw) || "The analysis did not finish.");
+    }
+    const body = await response.json();
+    if (body.status === "completed") return body;
+    if (body.status === "failed") {
+      throw new Error((body.result && body.result.error) || "The analysis did not finish.");
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  throw new Error("The analysis is still running.");
 }
 
 function cleanError(raw) {
@@ -260,7 +285,7 @@ function renderReport(data, meta) {
   const missingPieces = [];
   if (!hasEvidence) missingPieces.push("skill evidence");
   if (!data.ai_analysis) missingPieces.push("the written audit");
-  if (!data.ats_data) missingPieces.push("keyword coverage");
+  if (!data.jd_match_score) missingPieces.push("JD Match Score");
 
   document.getElementById("resumeMeta").textContent = `Resume: ${meta.filename}`;
   document.getElementById("githubMeta").textContent = meta.githubUsername
@@ -286,7 +311,7 @@ function renderReport(data, meta) {
   renderSkillList();
   renderGaps(gaps);
   renderActions(actions);
-  renderCoverage(data.ats_data, data.ai_analysis && data.ai_analysis.ats_impact, mapping);
+  renderCoverage(data.jd_match_score);
   selectTab("overview");
 }
 
@@ -505,66 +530,45 @@ function renderActions(actions) {
   `;
 }
 
-function renderCoverage(atsData, atsImpact, mapping) {
+function renderCoverage(score) {
   const host = document.getElementById("coverageContent");
-  if (!atsData) {
-    host.innerHTML = `<h3>Keyword coverage estimate</h3><p class="empty-copy">Keyword coverage was not included in this response.</p>`;
+  host.replaceChildren();
+  const title = document.createElement("h3");
+  title.textContent = "JD Match Score";
+  host.append(title);
+  if (!score || typeof score.score !== "number") {
+    const empty = document.createElement("p");
+    empty.className = "empty-copy";
+    empty.textContent = "JD Match Score was not included in this response.";
+    host.append(empty);
     return;
   }
-  const rate = formatPercent(atsData.keyword_match_rate);
-  const lexical = formatPercent(atsData.bm25_match_rate);
-  const semantic = formatPercent(atsData.semantic_match_rate);
-  const similarities = atsData.semantic_similarities && typeof atsData.semantic_similarities === "object"
-    ? Object.entries(atsData.semantic_similarities)
-    : [];
-  const impact = atsImpact && typeof atsImpact === "object" ? atsImpact : null;
-  host.innerHTML = `
-    <h3>Keyword coverage estimate</h3>
-    <p>This is an overlap estimate between job-description terms and the resume text. It is not an employer's applicant-tracking score, and it does not predict whether an application will pass screening.</p>
-    <div class="coverage-stats">
-      ${stat("Hybrid overlap", rate)}
-      ${stat("Lexical overlap", lexical)}
-      ${stat("Semantic overlap", semantic)}
-    </div>
-    <p class="helper">Hybrid overlap counts a term when either the lexical match or the semantic match found it. ${numberOrDash(atsData.matched_keywords)} matched terms out of ${numberOrDash(atsData.total_keywords)}.</p>
-    ${atsData.semantic_available === false ? `<p class="helper">Semantic overlap was not calculated. Windows blocked the local scikit-learn library, so this run used lexical matching only.</p>` : ""}
-    <h3 class="section-gap">Matched terms</h3>
-    ${termList(atsData.hybrid_matched_skills, "No matched terms were returned.")}
-    <h3 class="section-gap">Required skills not in the resume scan</h3>
-    ${termList(mapping.missing, "None.")}
-    ${impactBlock(impact)}
-    ${similarities.length ? `
-      <details>
-        <summary>Semantic similarity scores</summary>
-        <ul class="similarity-list">
-          ${similarities.map(([skill, score]) => `<li><span>${escapeHtml(skill)}</span><span>${escapeHtml(score)}</span></li>`).join("")}
-        </ul>
-      </details>
-    ` : ""}
-  `;
-}
-
-function stat(label, value) {
-  return `<div><strong>${escapeHtml(value)}</strong><span class="helper">${escapeHtml(label)}</span></div>`;
-}
-
-function impactBlock(impact) {
-  if (!impact) return "";
-  const reasons = asList(impact.rejection_reasons).map(item => typeof item === "string" ? item : item.skill || "");
-  const gain = impact.estimated_score_gain;
-  return `
-    <h3 class="section-gap">Model notes</h3>
-    <p class="helper">These notes are the model's reading of the keyword overlap. They are not an employer decision.</p>
-    ${impact.ats_risk ? `<p>Model risk label: ${escapeHtml(impact.ats_risk)}</p>` : ""}
-    ${gain === 0 || gain ? `<p>Model estimate if missing terms were addressed: ${escapeHtml(gain)}. This is not a measured employer score.</p>` : ""}
-    ${reasons.length ? `<ul>${reasons.filter(Boolean).map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
-  `;
-}
-
-function termList(values, emptyText) {
-  const items = Array.isArray(values) ? values : [];
-  if (!items.length) return `<p class="empty-copy">${escapeHtml(emptyText)}</p>`;
-  return `<ul class="term-list">${items.map(item => `<li class="term">${escapeHtml(item)}</li>`).join("")}</ul>`;
+  const summary = document.createElement("p");
+  summary.textContent = "This score comes from the skill graph. An exact or alias match scores 1.0. A graph neighbour scores 0.4 to 0.7. Required skills count more than preferred skills. The same inputs always produce the same score.";
+  host.append(summary);
+  const value = document.createElement("p");
+  value.textContent = `Score: ${score.score}`;
+  host.append(value);
+  const breakdown = Array.isArray(score.breakdown) ? score.breakdown : [];
+  if (!breakdown.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-copy";
+    empty.textContent = "No job skills were scored.";
+    host.append(empty);
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "term-list";
+  breakdown.forEach(item => {
+    const row = document.createElement("li");
+    const skill = item && item.skill ? item.skill : "Skill";
+    const priority = item && item.priority ? item.priority : "unspecified";
+    const points = item && typeof item.points === "number" ? String(item.points) : "—";
+    const reason = item && item.reason ? item.reason : "No reason was returned.";
+    row.textContent = `${skill} (${priority}): ${points}. ${reason}`;
+    list.append(row);
+  });
+  host.append(list);
 }
 
 function renderChips(host, values, emptyText) {
@@ -576,16 +580,6 @@ function renderChips(host, values, emptyText) {
 
 function asList(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function formatPercent(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return `${Math.round(value)}%`;
-  if (typeof value === "string" && value.trim() && !Number.isNaN(Number(value))) return `${Math.round(Number(value))}%`;
-  return "—";
-}
-
-function numberOrDash(value) {
-  return typeof value === "number" ? String(value) : "—";
 }
 
 function setupTabs() {

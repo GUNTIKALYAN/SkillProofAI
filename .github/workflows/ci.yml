@@ -23,11 +23,35 @@ jobs:
 
       - name: Build backend image
         run: |
-          docker build -t skillproof-backend:ci ./Backend
+          docker build -f Backend/Dockerfile -t skillproof-backend:ci .
 
       - name: Run backend tests
         run: |
           docker run --rm -e GROQ_API_KEY=test_dummy_key skillproof-backend:ci pytest
+
+      - name: Build skill graph image
+        run: |
+          docker build -f mcp_servers/skillgraph/Dockerfile -t skillproof-skillgraph:ci mcp_servers/skillgraph
+
+      - name: Run skill graph tests
+        run: |
+          docker run --rm --entrypoint python skillproof-skillgraph:ci -m pytest
+
+      - name: Build Tavily MCP image
+        run: |
+          docker build -f mcp_servers/tavily/Dockerfile -t skillproof-tavily:ci mcp_servers/tavily
+
+      - name: Run Tavily MCP tests
+        run: |
+          docker run --rm --entrypoint python skillproof-tavily:ci -m pytest
+
+      - name: Build Verify MCP image
+        run: |
+          docker build -f mcp_servers/verify/Dockerfile -t skillproof-verify:ci mcp_servers/verify
+
+      - name: Run Verify MCP tests
+        run: |
+          docker run --rm --entrypoint python skillproof-verify:ci -m pytest
 
       # FRONTEND
 

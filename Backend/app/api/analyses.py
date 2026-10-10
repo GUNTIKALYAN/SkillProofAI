@@ -1,0 +1,136 @@
+import uuid
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import ValidationError
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user
+from app.api.uploads import resume_file
+from app.core.resume_parse import parse_resume
+from app.db.models import User
+from app.db.session import get_db
+from app.schemas.auth import AnalysisPublic, JobAccepted
+from app.schemas.input_schema import AnalyzeRequest
+from app.services.analysis_access import get_owned_analysis
+from app.services.analysis_service import accept_analysis
+from app.services.jobs import QueueError
+from app.services.skill_extract import ExtractionError, extract_skills
+
+router = APIRouter()
+
+
+@router.get("/")
+def home_page() -> dict[str, str]:
+    return {"message": "Welcome to home page of SkillProof AI"}
+
+
+@router.post("/parse-resume")
+def parse_resume_route(
+    resume: UploadFile = File(...),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    with resume_file(resume) as resume_path:
+        return _parse_resume(resume_path)
+
+
+@router.post("/analyze-jd")
+def analyze_jd_route(
+    jd_text: str = Form(...),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    if not jd_text.strip():
+        raise HTTPException(status_code=400, detail="JD text is required")
+    try:
+        extraction = extract_skills("", jd_text)
+    except ExtractionError as exc:
+        raise HTTPException(status_code=502, detail="Skill extraction failed") from exc
+    return {"jd_skills": [item.model_dump() for item in extraction.jd_skills]}
+
+
+@router.post("/map-skills", response_model=JobAccepted, status_code=202)
+def map_skills_route(
+    resume: UploadFile = File(...),
+    jd_text: str = Form(...),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> JobAccepted:
+    if not jd_text.strip():
+        raise HTTPException(status_code=400, detail="JD text is required")
+    request = _analyze_request(jd_text, None, False)
+    with resume_file(resume) as resume_path:
+        return _enqueue(resume_path, request, user, session)
+
+
+@router.post("/analyses", response_model=JobAccepted, status_code=202)
+@router.post("/analyze", response_model=JobAccepted, status_code=202)
+def analyze(
+    jd_text: str = Form(...),
+    github_username: str | None = Form(None),
+    include_github: bool = Form(True),
+    resume: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> JobAccepted:
+    request = _analyze_request(jd_text, github_username, include_github)
+    with resume_file(resume) as resume_path:
+        return _enqueue(resume_path, request, user, session)
+
+
+@router.get("/analyses/{analysis_id}", response_model=AnalysisPublic)
+def read_analysis(
+    analysis_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> AnalysisPublic:
+    row = get_owned_analysis(session, user.id, analysis_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return AnalysisPublic(
+        id=row.id,
+        status=row.status,
+        score=row.score,
+        github_username=row.github_username,
+        created_at=row.created_at,
+        result=row.result_json,
+    )
+
+
+def _parse_resume(resume_path: str) -> dict:
+    try:
+        return parse_resume(resume_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _enqueue(resume_path: str, request: AnalyzeRequest, user: User, session: Session) -> JobAccepted:
+    try:
+        resume = parse_resume(resume_path)
+        job_id = accept_analysis(session, user.id, request, resume)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except QueueError as exc:
+        raise HTTPException(status_code=503, detail="The job queue is unavailable") from exc
+    return JobAccepted(job_id=job_id, status="queued")
+
+
+def _analyze_request(
+    jd_text: str,
+    github_username: str | None,
+    include_github: bool,
+) -> AnalyzeRequest:
+    try:
+        return AnalyzeRequest(
+            jd_text=jd_text,
+            github_username=github_username,
+            include_github=include_github,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=_validation_message(exc)) from exc
+
+
+def _validation_message(exc: ValidationError) -> str:
+    parts = [
+        f"{'.'.join(str(item) for item in err['loc'])}: {err['msg']}"
+        for err in exc.errors()
+    ]
+    return "; ".join(parts) or "Invalid analysis request"

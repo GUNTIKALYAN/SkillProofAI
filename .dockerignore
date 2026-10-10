@@ -4,24 +4,42 @@
 
 # Python cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
 
 # Virtual environments
 venv/
 .venv/
 
-# Environment files
+# Secrets
 .env
 
-# Frontend & docs (not needed for backend image)
+# Not copied into the backend image
+Frontend/
 frontend/
+mcp_servers/
 docs/
+Documentation/
+.cursor/
+.github/
+.vscode/
+.idea/
+node_modules/
+docker-volumes/
+
+# Local notes
+steps.md
+plan.md
+cursor.md
+check_ouput.py
 
 # OS files
 .DS_Store
 Thumbs.db
-
-# CI metadata
-.github/

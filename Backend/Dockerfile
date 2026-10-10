@@ -28,8 +28,10 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 COPY --from=builder /usr/local /usr/local
-COPY app ./app
+COPY Backend/alembic.ini ./alembic.ini
+COPY Backend/alembic ./alembic
+COPY Backend/app ./app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
