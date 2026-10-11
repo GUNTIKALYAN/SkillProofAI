@@ -1,4 +1,3 @@
-from typing import Set
 from Backend.app.utils.constants import SKILL_IMPLICATIONS
 
 
@@ -6,7 +5,7 @@ def normalize_skill(skill: str) -> str:
     return skill.lower().strip()
 
 
-def infer_skills_from_text(text: str) -> Set[str]:
+def infer_skills_from_text(text: str) -> set[str]:
     """
     Infers high-level skills from low-level mentions.
 

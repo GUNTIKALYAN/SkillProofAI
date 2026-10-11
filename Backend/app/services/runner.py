@@ -103,11 +103,19 @@ def _save(session, row: Analysis, run: AgentRun, state: dict) -> None:
                 "unknown_skills": unknown,
             }
         ).model_dump()
+        experience = state.get("experience") or {}
         body["github_skipped"] = bool(state.get("github_skipped"))
         body["experience_skipped"] = bool(state.get("experience_skipped"))
         body["github"] = state.get("github_evidence")
         body["action_plan"] = state.get("plan")
-        body["companies"] = (state.get("experience") or {}).get("companies") or []
+        body["companies"] = experience.get("companies") or []
+        body["experience"] = {
+            "flags": experience.get("flags") or [],
+            "companies": experience.get("companies") or [],
+        }
+        extraction = match.get("extraction") or {}
+        body["resume_skills"] = list(extraction.get("resume_skills") or [])
+        body["jd_skills"] = list(extraction.get("jd_skills") or [])
         body["partial"] = bool(match.get("error") or state.get("audit_error"))
         row.result_json = body
         row.score = float(score.get("score") or 0)

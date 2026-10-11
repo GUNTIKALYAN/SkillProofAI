@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import timedelta
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from mcp import ClientSession
@@ -60,7 +61,7 @@ def _target(settings: Settings, server: str) -> tuple[str, str | None, float]:
     if server == "skillgraph":
         return settings.skillgraph_url, settings.skillgraph_token, SERVER_TIMEOUTS[server]
     if server == "github":
-        return settings.github_mcp_url, None, SERVER_TIMEOUTS[server]
+        return settings.github_mcp_url, settings.github_mcp_token, SERVER_TIMEOUTS[server]
     if server == "tavily":
         return settings.tavily_mcp_url, settings.tavily_mcp_token, SERVER_TIMEOUTS[server]
     if server == "verify":
@@ -109,6 +110,17 @@ async def _list(url: str, token: str | None, timeout: float) -> set[str]:
         await session.initialize()
         listed = await session.list_tools()
     return {item.name for item in listed.tools}
+
+
+def skillgraph_ready(mcp_url: str, timeout: float = 2) -> bool:
+    parts = urlsplit(mcp_url)
+    url = urlunsplit((parts.scheme, parts.netloc, "/readyz", "", ""))
+    try:
+        response = httpx.get(url, timeout=timeout)
+    except httpx.HTTPError as exc:
+        logger.error("skillgraph check failed error=%s", type(exc).__name__)
+        return False
+    return response.status_code == 200
 
 
 def _payload(result: CallToolResult) -> dict:

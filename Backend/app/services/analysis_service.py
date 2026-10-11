@@ -17,7 +17,7 @@ def accept_analysis(
     request: AnalyzeRequest,
     resume: dict,
 ) -> uuid.UUID:
-    username = request.github_username if request.include_github else None
+    username = request.github_username
     row = Analysis(
         user_id=user_id,
         jd_text=request.jd_text,

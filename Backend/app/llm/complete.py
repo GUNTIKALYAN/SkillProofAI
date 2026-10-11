@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 from app.agents.skills.loader import SkillError, load_skills
 from app.config import get_settings
 from app.mcp_client.context import get_llm
+from app.services.metrics import observe_llm
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,11 @@ def complete_json(
         if feedback:
             user = f"{user}\n\nValidation error: {feedback}"
         try:
-            raw, tokens = caller(system, user)
+            started = time.perf_counter()
+            try:
+                raw, tokens = caller(system, user)
+            finally:
+                observe_llm(max(int((time.perf_counter() - started) * 1000), 0))
             if not isinstance(raw, dict):
                 raise json.JSONDecodeError("expected object", "", 0)
             model = schema.model_validate(raw)

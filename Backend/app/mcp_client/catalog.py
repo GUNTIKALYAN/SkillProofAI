@@ -7,7 +7,7 @@ KNOWN_TOOLS: dict[str, set[str]] = {
         "explain_skill",
         "what_if_learn",
     },
-    "github": {"search_repositories"},
+    "github": {"list_public_repos"},
     "tavily": {"tavily_search"},
     "verify": {"check_company"},
 }

@@ -1,284 +1,113 @@
-# SkillProof AI- Multi-Agent AI System
+# SkillProofAI
 
-SkillProof AI helps job applicants **verify their skills before applying**.
+SkillProofAI compares one resume with a job description and returns a **JD Match Score**, a skill audit (matched, partial, missing), and an action plan. GitHub activity is a **signal**, not proof. The product never labels a person "fake".
 
-Instead of trusting resumes or ATS keyword matching, it validates skills against:
-- Resume content  
-- Job description requirements  
-- Real GitHub project evidence  
+A chat window can already critique a resume. This only wins where a chat window cannot:
 
-The result is a **clear skill audit, identified gaps, and actionable next steps**.
+1. **Cross-checked evidence.** Public GitHub repos (language, description, README text) are compared with resume claims. A repo can be a tutorial, and private work is invisible, so the UI says "supported by public evidence".
+2. **The same input gives the same score.** The score comes from the skill graph, with a reason per skill. The model writes explanations and the plan. It does not pick the score.
+3. **Progress sticks around.** Past scores, a plan you can tick off, and a re-run that shows the score change.
+4. **Several jobs, one profile.** Compare up to 10 job descriptions and see the single skill that unlocks the most of them.
+5. **What-if.** "What if I learn X?" recomputes the score from the graph.
 
----
+## Architecture
 
-## Why SkillProof AI?
-
-Modern hiring systems break because:
-- Candidates can list skills without proof  
-- ATS systems prioritize keywords over real ability  
-
-This leads to strong candidates being rejected and weak matches passing screening.
-
-SkillProof AI addresses this **from the candidate’s side**, before submission.
-
----
-
-## What SkillProof AI Takes In
-
-- Resume (PDF or DOCX)  
-- Job description  
-- GitHub username  
-
----
-
-## What SkillProof AI Does
-
-1. Reads the resume and job description  
-2. Extracts required skills for the role  
-3. Analyzes GitHub repositories for real usage  
-4. Verifies which skills are actually supported  
-5. Uses AI **only** to explain gaps and suggest improvements  
-
----
-
-## What You Get
-
-- Supported vs unsupported skills  
-- Skill gaps for the target role  
-- Risk areas (over-claimed skills)  
-- Clear, practical next steps  
-
-**No black-box scoring. Every result is explainable.**
-
----
-
-## Core Principle
-
-> Validate with deterministic logic first.  
-> Use AI only for reasoning and recommendations.
-
----
-
-## Tech Stack & Design Choices
-
-SkillProof AI is built with a **practical, production-oriented stack** focused on clarity, reliability, and explainability.
-
-### Backend
-- **Python** – Core language for parsing, validation, and orchestration  
-- **FastAPI** – Lightweight API framework with automatic validation and docs  
-- **Pydantic** – Strong input/output data contracts  
-
-### AI & Agent Layer
-- **LLaMA (via Groq)** – Used only for reasoning and recommendations  
-- **LangGraph** – Structured multi-agent workflows:
-  - Skill audit agent  
-  - Gap analysis agent  
-  - Action planning agent  
-
-> AI agents operate only on validated data, not raw inputs.
-
-### Validation & Evidence
-- **Rule-based logic** – Deterministic skill matching and evidence checks  
-- **GitHub REST API** – Fetches real project evidence (repos, languages, activity)  
-
-### Infrastructure & DevOps
-- **Docker** – Containerized setup for consistent environments  
-- **GitHub Actions (CI/CD)** – Automated linting, testing, and build checks  
-
-### Frontend
-- **HTML / CSS / JavaScript** – Minimal UI focused on clarity and demo readiness  
-
----
-
-## Project Structure
-
-The project is organized to clearly separate **API handling**, **deterministic validation**, and **AI reasoning**.
-
-
-```bash
-skillproof-ai/
-│
-├── Backend/
-│   ├── app/
-│   │   ├── main.py                  # FastAPI entry point
-│   │   ├── config.py                # Environment & app configuration
-│   │   ├── __init__.py
-│   │
-│   │   ├── api/
-│   │   │   ├── routes.py             # API routes (/analyze, health)
-│   │   │   └── __init__.py
-│   │
-│   │   ├── core/                     # Deterministic logic (NO AI)
-│   │   │   ├── resume_parse.py        # Resume text extraction
-│   │   │   ├── resume_utils.py
-│   │   │   ├── jd_analyzer.py         # Job description parsing
-│   │   │   ├── jd_utils.py
-│   │   │   ├── skill_mapper.py        # Resume ↔ JD mapping
-│   │   │   ├── github_fetcher.py      # GitHub REST API integration
-│   │   │   ├── evidence_validator.py  # Skill evidence validation
-│   │   │   ├── ats_bm25.py            # ATS keyword logic
-│   │   │   ├── ats_normalizer.py
-│   │   │   ├── ats_scorer.py
-│   │   │   └── __init__.py
-│   │
-│   │   ├── agents/                   # AI reasoning layer
-│   │   │   ├── base_agent.py
-│   │   │   ├── skill_audit_agent.py
-│   │   │   ├── gap_analysis_agent.py
-│   │   │   ├── ats_impact_agent.py
-│   │   │   ├── quick_insight_agent.py
-│   │   │   ├── action_plan_agent.py
-│   │   │   ├── action_planner_agent.py
-│   │   │   ├── agent_runner.py        # Agent orchestration
-│   │   │   └── __init__.py
-│   │
-│   │   ├── graph/                    # LangGraph workflow
-│   │   │   ├── graph_builder.py
-│   │   │   ├── graph_state.py
-│   │   │   ├── graph_visualize.py
-│   │   │   ├── skillproofai_agent_flow.png
-│   │   │   └── __init__.py
-│   │
-│   │   ├── nodes/                    # Individual LangGraph nodes
-│   │   │   ├── skill_audit_node.py
-│   │   │   ├── gap_analysis_node.py
-│   │   │   ├── ats_impact_node.py
-│   │   │   ├── action_plan_node.py
-│   │   │   ├── action_planner_node.py
-│   │   │   └── __init__.py
-│   │
-│   │   ├── llm/
-│   │   │   ├── client.py              # LLaMA / Groq client
-│   │   │   └── __init__.py
-│   │
-│   │   ├── schemas/
-│   │   │   ├── input_schema.py        # Request models
-│   │   │   ├── output_schema.py       # Response models
-│   │   │   └── __init__.py
-│   │
-│   │   ├── services/
-│   │   │   ├── analysis_service.py    # End-to-end pipeline
-│   │   │   └── __init__.py
-│   │
-│   │   ├── utils/
-│   │   │   ├── text_utils.py
-│   │   │   ├── skill_utils.py
-│   │   │   ├── constants.py
-│   │   │   └── __init__.py
-│   │
-│   │   └── tests/
-│   │       ├── test_agents.py
-│   │       ├── test_health.py
-│   │       └── __init__.py
-│   │
-│   ├── Dockerfile                    # Backend container
-│   ├── requirements.txt
-│   └── README.md
-│
-├── Frontend/
-│   ├── index.html
-│   ├── static/
-│   │   ├── css/
-│   │   │   └── style.css
-│   │   └── js/
-│   │       └── script.js
-│   ├── nginx.conf
-│   └── Dockerfile                    # Frontend container
-│
-├── .github/
-│   └── workflows/
-│       └── ci.yml                    # CI/CD pipeline
-│
-├── docker-compose.yml                # Full stack orchestration
-├── .env.example
-├── .dockerignore
-├── .gitignore
-└── README.md                         # Main project README
+```
+Browser (HTML, CSS, JS)
+        |
+   Traefik  — TLS, routing, load balancing, coarse IP limit
+        |
+   FastAPI (two replicas, no in-memory session state)
+     |-- auth, analyses, chat, compare, admin, /metrics
+     |-- Postgres  — users, analyses, traces, chat
+     |-- Redis     — rate limits, cache, job queue, shared metrics
+     |
+     +-- worker (ARQ) runs the LangGraph supervisor
+           |-- Skill-Graph MCP  -> Neo4j (skill ontology only)
+           |-- GitHub MCP       (list_public_repos, username required)
+           |-- Tavily MCP       (learning resources)
+           |-- Verify MCP       (company name only)
+           +-- Groq             (extraction, explanations, plan)
 ```
 
-## How to Run SkillProof AI
+Neo4j stores the skill ontology only. Candidate data stays in Postgres. MCP tools are read-only and never see the user's JWT.
 
-Prerequisites
-- Python 3.10+
-- Docker & Docker Compose
-- GitHub Personal Access Token (for higher API limits)
-- Groq API key (for LLaMA agents)
+The Skill-Graph container has no published port and sits on an internal Docker network. GitHub, Tavily, and Verify also have no published ports. They join that internal network and a second network, because they have to call the public GitHub and Tavily APIs. The worker joins both networks for the same reason: Groq is on the internet.
 
-1) Clone the Repository
-   ```bash
-   git clone https://github.com/GUNTIKALYAN/skillproof-ai.git
-   cd skillproof-ai
-   ```
+## Run
 
-2) Environment Setup
-   Create ```.env``` file in the project root
-     
-   ```bash
-      GROQ_API_KEY=your_groq_api_key
-      GITHUB_TOKEN=your_github_token
-   ```
-3) Run with Docker (Recommended)
-   ```bash
-   docker-compose up --build
-   ```
-   Services:
-   - Backend (FastAPI): http://localhost:8000
-   - Frontend (Nginx): http://localhost:3000
+```bash
+cp .env.example .env
+```
 
-4) Run Backend Locally (Without Docker)
-   ```bash
-    cd Backend
-    python -m venv venv
-    source venv/bin/activate   # Windows: venv\Scripts\activate
-    pip install -r ../requirements.txt
-    uvicorn app.main:app --reload
-   ```
-Backend will be available at: http://localhost:8000
+Fill in `.env`. At least `GROQ_API_KEY`, `JWT_SECRET`, and the MCP bearer tokens need real values. Placeholders in `.env.example` are not secrets and are not enough to boot the app. `COOKIE_SECURE=false` is for local HTTP. Set it to `true` when the site is served over HTTPS only.
 
+```bash
+docker compose up --build
+```
 
-## Limitations & Assumptions
+Runtime logs are written under `Backend/.logs/` while the app is running: `backend-logs`, `worker-logs`, `mcp-logs`, and `mcp/*.log` for each MCP server. Those files are not committed.
 
-SkillProof AI is designed to be transparent and practical. The following limitations are intentional and acknowledged:
+Then open `https://localhost` and accept the local certificate. The API is also on `http://localhost:8000`. A direct frontend port is `http://localhost:3000`.
 
-- Only **public GitHub repositories** are analyzed  
-- Skills demonstrated outside GitHub (private repos, internships, work projects) may not be captured  
-- Resume and job description parsing relies on **heuristics**, not deep semantic inference  
-- ATS scoring is an **approximation**, not a replica of proprietary systems  
-- Skill validation focuses on **evidence presence**, not absolute expertise level  
+Sign up in the UI. The first admin is not a public signup. From `Backend/`:
 
-These constraints are deliberate to keep the system **explainable, auditable, and realistic**.
+```bash
+python create_admin.py
+```
 
----
+`Delete my data` removes the signed-in account, parsed resume text, analyses, chat, and refresh tokens. Resume files are not stored. Only parsed text is saved with the analysis.
 
-## Future Improvements
+`/metrics` is plain Prometheus text: request latency, LLM latency, and the ARQ queue depth. It has no user data.
 
-Potential enhancements that can be added without changing the core design:
+## Environment
 
-- Support for **private repositories** via OAuth  
-- LinkedIn and portfolio website integration  
-- Deeper project-level code analysis  
-- Recruiter-side dashboards for candidate comparison  
-- Resume rewriting based on validated skills  
-- Role-specific readiness benchmarks  
+See `.env.example`.
 
-The current architecture is built to support these extensions cleanly.
+| Variable | Role |
+|---|---|
+| `GROQ_API_KEY`, `LLAMA_MODEL` | Model used for extraction, explanations, and the plan |
+| `DATABASE_URL` | Postgres URL for the API and worker |
+| `JWT_SECRET` | Signs the 15-minute access token |
+| `REDIS_URL` | Rate limits, cache, queue, metrics |
+| `SKILLGRAPH_URL`, `SKILLGRAPH_TOKEN` | Skill-Graph MCP |
+| `GITHUB_MCP_URL`, `GITHUB_MCP_TOKEN` | Our GitHub MCP server. Every analysis requires a username |
+| `GITHUB_TOKEN` | Optional GitHub API token for a higher public-repo quota |
+| `TAVILY_MCP_URL`, `TAVILY_MCP_TOKEN`, `TAVILY_API_KEY` | Learning-resource search |
+| `VERIFY_MCP_URL`, `VERIFY_MCP_TOKEN` | Company-name check |
+| `COOKIE_SECURE` | `true` in production so the refresh cookie is HTTPS-only |
+| `CORS_ORIGINS` | Explicit origins. Cookies need this. No wildcard |
+| `POSTGRES_*`, `NEO4J_PASSWORD` | Compose database passwords |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Used by `create_admin.py` |
+| `MCP_PROBE` | `true` checks MCP tools at startup |
 
-## License
+Do not commit `.env`. Images are built without it. CI refuses a tracked `.env`.
 
-This project is licensed under the **MIT License**.
+## Tests
 
-You are free to use, modify, and distribute this project for personal and commercial purposes, with proper attribution.  
-See the [LICENSE](LICENSE) file for details.
+From `Backend/`:
 
+```bash
+pytest
+ruff check .
+```
 
----
-<div align="center">
+Those tests use SQLite and fake LLM and MCP clients. They do not need API keys.
 
- *Happy Learning*
+CI (`.github/workflows/ci.yml`) runs ruff, the test suite, and a live check against Postgres, Redis, and Neo4j service containers. It builds the images, checks they do not run as root, and runs `pip-audit`. Images are pushed only from `main`.
 
-</div>
+To run the live service check yourself, point the `STACK_*` variables at Postgres, Redis, and Neo4j and set `SKILLPROOF_INTEGRATION=1`. In PowerShell:
 
+```powershell
+$env:SKILLPROOF_INTEGRATION = "1"
+$env:STACK_DATABASE_URL = "postgresql://skillproof:skillproof@localhost:5432/skillproof"
+$env:STACK_REDIS_URL = "redis://localhost:6379/0"
+$env:STACK_NEO4J_URI = "bolt://localhost:7687"
+$env:STACK_NEO4J_USER = "neo4j"
+$env:STACK_NEO4J_PASSWORD = "skillproof-neo4j"
+pytest app/tests/test_stack.py
+```
 
+## Interview notes
 
-
-
+Why Neo4j, why MCP, why a queue, why the refresh cookie, and what was left out: [docs/interview-notes.md](docs/interview-notes.md).

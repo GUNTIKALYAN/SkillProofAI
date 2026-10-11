@@ -19,6 +19,7 @@ class RunContext:
     cache: object
     lock: threading.Lock
     node_calls: dict[str, int]
+    trace: bool = True
 
 
 _run: ContextVar[RunContext | None] = ContextVar("mcp_run", default=None)

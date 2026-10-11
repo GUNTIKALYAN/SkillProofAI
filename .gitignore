@@ -16,6 +16,8 @@ Thumbs.db
 
 Documentation/
 .env
+.logs/
+Backend/.logs/
 .venv/
 venv/
 node_modules/
@@ -24,5 +26,4 @@ check_ouput.py
 
 steps.md
 plan.md
-cursor.md
-.cursor/
+docs/

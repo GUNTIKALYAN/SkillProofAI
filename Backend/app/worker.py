@@ -7,6 +7,7 @@ from arq.connections import RedisSettings
 
 from app.agents.skills.loader import SkillError, load_skills, require_listed_tools
 from app.config import get_settings
+from app.logging_config import configure_logging
 from app.mcp_client.catalog import KNOWN_TOOLS
 from app.mcp_client.transport import probe_servers
 
@@ -22,6 +23,7 @@ async def run_analysis(ctx, analysis_id: str) -> None:
 
 async def startup(ctx) -> None:
     del ctx
+    configure_logging("worker")
     settings = get_settings()
     try:
         skills = load_skills()

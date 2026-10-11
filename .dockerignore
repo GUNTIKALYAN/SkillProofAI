@@ -21,6 +21,10 @@ venv/
 # Secrets
 .env
 
+# Runtime logs
+.logs/
+Backend/.logs/
+
 # Not copied into the backend image
 Frontend/
 frontend/

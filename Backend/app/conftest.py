@@ -11,7 +11,8 @@ os.environ["COOKIE_SECURE"] = "false"
 os.environ["SKILLGRAPH_URL"] = "http://skillgraph:8000/mcp"
 os.environ["SKILLGRAPH_TOKEN"] = "test-skillgraph-token"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
-os.environ["GITHUB_MCP_URL"] = "http://mcp-github:8082/mcp"
+os.environ["GITHUB_MCP_URL"] = "http://mcp-github:8000/mcp"
+os.environ["GITHUB_MCP_TOKEN"] = "test-github-token-0001"
 os.environ["TAVILY_MCP_URL"] = "http://mcp-tavily:8000/mcp"
 os.environ["TAVILY_MCP_TOKEN"] = "test-tavily-token-0001"
 os.environ["VERIFY_MCP_URL"] = "http://mcp-verify:8000/mcp"
@@ -19,6 +20,24 @@ os.environ["VERIFY_MCP_TOKEN"] = "test-verify-token-0001"
 os.environ["MCP_PROBE"] = "false"
 
 TEST_PASSWORD = "password123"
+
+
+@pytest.fixture(autouse=True)
+def memory_metrics():
+    from app.services.metrics import MemoryRecorder, set_recorder
+
+    set_recorder(MemoryRecorder())
+    yield
+    set_recorder(None)
+
+
+@pytest.fixture(autouse=True)
+def memory_limiter():
+    from app.services.rate_limit import MemoryLimiter, set_limiter
+
+    set_limiter(MemoryLimiter())
+    yield
+    set_limiter(None)
 
 
 @pytest.fixture(autouse=True)

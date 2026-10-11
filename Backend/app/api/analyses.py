@@ -5,13 +5,25 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.limits import limit_analyze
 from app.api.uploads import resume_file
 from app.core.resume_parse import parse_resume
-from app.db.models import User
+from app.db.models import Analysis, User
 from app.db.session import get_db
-from app.schemas.auth import AnalysisPublic, JobAccepted
+from app.schemas.auth import (
+    AnalysisPublic,
+    AnalysisSummary,
+    CompanyUrlRequest,
+    JobAccepted,
+)
+from app.schemas.chat import PlanCheck
 from app.schemas.input_schema import AnalyzeRequest
-from app.services.analysis_access import get_owned_analysis
+from app.services.analysis_access import (
+    get_owned_analysis,
+    list_owned_analyses,
+    save_company_url,
+    set_plan_check,
+)
 from app.services.analysis_service import accept_analysis
 from app.services.jobs import QueueError
 from app.services.skill_extract import ExtractionError, extract_skills
@@ -51,12 +63,13 @@ def analyze_jd_route(
 def map_skills_route(
     resume: UploadFile = File(...),
     jd_text: str = Form(...),
-    user: User = Depends(get_current_user),
+    github_username: str = Form(...),
+    user: User = Depends(limit_analyze),
     session: Session = Depends(get_db),
 ) -> JobAccepted:
     if not jd_text.strip():
         raise HTTPException(status_code=400, detail="JD text is required")
-    request = _analyze_request(jd_text, None, False)
+    request = _analyze_request(jd_text, github_username)
     with resume_file(resume) as resume_path:
         return _enqueue(resume_path, request, user, session)
 
@@ -65,15 +78,48 @@ def map_skills_route(
 @router.post("/analyze", response_model=JobAccepted, status_code=202)
 def analyze(
     jd_text: str = Form(...),
-    github_username: str | None = Form(None),
-    include_github: bool = Form(True),
+    github_username: str = Form(...),
     resume: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(limit_analyze),
     session: Session = Depends(get_db),
 ) -> JobAccepted:
-    request = _analyze_request(jd_text, github_username, include_github)
+    request = _analyze_request(jd_text, github_username)
     with resume_file(resume) as resume_path:
         return _enqueue(resume_path, request, user, session)
+
+
+@router.get("/analyses", response_model=list[AnalysisSummary])
+def list_analyses(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> list[Analysis]:
+    return list_owned_analyses(session, user.id)
+
+
+@router.patch("/analyses/{analysis_id}/company-url", response_model=AnalysisPublic)
+def add_company_url(
+    analysis_id: uuid.UUID,
+    body: CompanyUrlRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> AnalysisPublic:
+    row = save_company_url(session, user.id, analysis_id, body.name, body.url)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return _public(row)
+
+
+@router.patch("/analyses/{analysis_id}/plan", response_model=AnalysisPublic)
+def check_plan_item(
+    analysis_id: uuid.UUID,
+    body: PlanCheck,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+) -> AnalysisPublic:
+    row = set_plan_check(session, user.id, analysis_id, body.skill, body.step, body.done)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return _public(row)
 
 
 @router.get("/analyses/{analysis_id}", response_model=AnalysisPublic)
@@ -85,6 +131,10 @@ def read_analysis(
     row = get_owned_analysis(session, user.id, analysis_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
+    return _public(row)
+
+
+def _public(row: Analysis) -> AnalysisPublic:
     return AnalysisPublic(
         id=row.id,
         status=row.status,
@@ -113,16 +163,11 @@ def _enqueue(resume_path: str, request: AnalyzeRequest, user: User, session: Ses
     return JobAccepted(job_id=job_id, status="queued")
 
 
-def _analyze_request(
-    jd_text: str,
-    github_username: str | None,
-    include_github: bool,
-) -> AnalyzeRequest:
+def _analyze_request(jd_text: str, github_username: str) -> AnalyzeRequest:
     try:
         return AnalyzeRequest(
             jd_text=jd_text,
             github_username=github_username,
-            include_github=include_github,
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=_validation_message(exc)) from exc

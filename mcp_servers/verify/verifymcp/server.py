@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 
 import httpx
 import redis
@@ -39,6 +41,7 @@ def build_server(settings: VerifySettings) -> FastMCP:
         auth=AuthSettings(
             issuer_url=_ISSUER,
             resource_server_url=AnyHttpUrl(settings.verify_public_url),
+            validate_token_resource=True,
             required_scopes=[_SCOPE],
         ),
         host=settings.host,
@@ -124,7 +127,20 @@ def load_settings() -> VerifySettings:
         raise RuntimeError(f"Startup failed. Missing or invalid settings: {names}.") from exc
 
 
+def _configure_logging(filename: str) -> None:
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    log_dir = os.environ.get("LOG_DIR", "").strip()
+    if log_dir:
+        path = Path(log_dir) / filename
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            handlers.append(logging.FileHandler(path, encoding="utf-8"))
+        except OSError:
+            pass
+    logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=handlers, force=True)
+
+
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    _configure_logging("verify.log")
     settings = load_settings()
     build_server(settings).run(transport="streamable-http")

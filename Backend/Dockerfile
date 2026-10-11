@@ -21,6 +21,9 @@ RUN python -m pip install --upgrade pip \
 # ---------- runtime stage ----------
 FROM python:3.10-slim
 
+RUN groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --home-dir /app --no-create-home app
+
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -28,9 +31,11 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 COPY --from=builder /usr/local /usr/local
-COPY Backend/alembic.ini ./alembic.ini
-COPY Backend/alembic ./alembic
-COPY Backend/app ./app
+COPY --chown=app:app Backend/alembic.ini ./alembic.ini
+COPY --chown=app:app Backend/alembic ./alembic
+COPY --chown=app:app Backend/app ./app
+
+USER app
 
 EXPOSE 8000
 

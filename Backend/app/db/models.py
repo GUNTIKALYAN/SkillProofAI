@@ -105,6 +105,7 @@ class UnknownSkill(Base):
     name: Mapped[str] = mapped_column(String(80), unique=True)
     seen_count: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(16), default="pending")
+    alias_of: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
@@ -113,11 +114,50 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    admin_id: Mapped[uuid.UUID] = mapped_column(
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id"),
         index=True,
+        nullable=True,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id"),
+        index=True,
+        nullable=True,
     )
     action: Mapped[str] = mapped_column(String(64))
     target: Mapped[str | None] = mapped_column(String(255), nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    analysis_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("analyses.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        index=True,
+    )
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    tokens: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

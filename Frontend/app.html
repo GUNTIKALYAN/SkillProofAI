@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkillProof AI - Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="app.html">SkillProof AI</a>
+      <nav class="nav" aria-label="Account">
+        <a href="app.html">New analysis</a>
+        <a href="history.html">History</a>
+        <a href="chat.html">Chat</a>
+        <a href="compare.html">Compare</a>
+        <a href="admin.html" data-admin hidden>Admin</a>
+        <span class="user-email" data-email></span>
+        <button class="button button-danger" type="button" data-delete-account>Delete my data</button>
+        <button class="button button-quiet" type="button" data-logout>Log out</button>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <section id="composer">
+      <h1>New analysis</h1>
+      <p class="lede">Compare a resume with one job description. The score is a JD Match Score, not an employer ATS score.</p>
+      <form id="analyzeForm">
+        <section class="card">
+          <h2>Resume</h2>
+          <p class="helper">PDF or DOCX, up to 5 MB. The file is not stored. Parsed text is saved with the analysis.</p>
+          <label for="resumeFile">File</label>
+          <input id="resumeFile" name="resume" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+          <p id="fileName" class="file-name"></p>
+        </section>
+        <section class="card">
+          <h2>Job description</h2>
+          <label for="jobDescription">Text</label>
+          <textarea id="jobDescription" name="jd_text" required placeholder="Required: Python and SQL. Preferred: Docker."></textarea>
+        </section>
+        <section class="card">
+          <h2>GitHub</h2>
+          <p class="helper">Required. Public repositories only. This is a signal, not verification.</p>
+          <label for="githubUsername">Username</label>
+          <input id="githubUsername" name="github_username" type="text" autocomplete="off" spellcheck="false" placeholder="octocat" required>
+        </section>
+        <p id="formError" class="banner banner-error" hidden></p>
+        <div class="form-actions">
+          <button class="button button-primary" type="submit">Run analysis</button>
+        </div>
+      </form>
+    </section>
+    <section id="progress" hidden aria-live="polite">
+      <div class="card">
+        <h2>Analysis in progress</h2>
+        <p id="progressStatus">Your analysis is queued.</p>
+      </div>
+    </section>
+    <section id="results" hidden></section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 import logging
+import os
 import secrets
+from pathlib import Path
 
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
@@ -9,6 +11,8 @@ from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
 from pydantic import AnyHttpUrl, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from skillgraph.schemas import (
     AuditResult,
@@ -72,6 +76,7 @@ def build_server(store: SkillStore, token: str, public_url: str, host: str, port
         auth=AuthSettings(
             issuer_url=_ISSUER,
             resource_server_url=AnyHttpUrl(public_url),
+            validate_token_resource=True,
             required_scopes=[_SCOPE],
         ),
         host=host,
@@ -80,11 +85,11 @@ def build_server(store: SkillStore, token: str, public_url: str, host: str, port
         stateless_http=True,
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
-    _register(mcp, store)
+    _register(mcp, store, token)
     return mcp
 
 
-def _register(mcp: FastMCP, store: SkillStore) -> None:
+def _register(mcp: FastMCP, store: SkillStore, token: str) -> None:
     @mcp.tool()
     def canonicalize_skill(text: str) -> CanonicalSkill:
         """Resolve a skill name to its canonical skill and ancestors."""
@@ -119,6 +124,52 @@ def _register(mcp: FastMCP, store: SkillStore) -> None:
         """Recompute the JD Match Score as if the candidate learned this skill."""
         return what_if_graph(store, skill, candidate_skills, _pairs(jd_skills))
 
+    @mcp.custom_route("/admin/skill", methods=["POST"], include_in_schema=False)
+    async def admin_skill(request: Request) -> JSONResponse:
+        if not _bearer_ok(request, token):
+            return JSONResponse({"detail": "Not allowed"}, status_code=401)
+        body = await _json_body(request)
+        name = str(body.get("name") or "")
+        if not store.add_skill(name):
+            return JSONResponse({"detail": "Skill name is empty"}, status_code=400)
+        return JSONResponse({"status": "approved"})
+
+    @mcp.custom_route("/admin/alias", methods=["POST"], include_in_schema=False)
+    async def admin_alias(request: Request) -> JSONResponse:
+        if not _bearer_ok(request, token):
+            return JSONResponse({"detail": "Not allowed"}, status_code=401)
+        body = await _json_body(request)
+        if not store.add_alias(str(body.get("name") or ""), str(body.get("canonical") or "")):
+            return JSONResponse({"detail": "That skill is not in the graph"}, status_code=404)
+        return JSONResponse({"status": "aliased"})
+
+    @mcp.custom_route("/readyz", methods=["GET"], include_in_schema=False)
+    async def readyz(_request: Request) -> JSONResponse:
+        try:
+            store.ping()
+        except Neo4jError as exc:
+            logger.error("neo4j check failed error=%s", type(exc).__name__)
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        return JSONResponse({"status": "ok"})
+
+
+def _bearer_ok(request: Request, token: str) -> bool:
+    header = request.headers.get("authorization", "")
+    scheme, _, value = header.partition(" ")
+    if scheme.lower() != "bearer" or not value:
+        return False
+    return len(value) == len(token) and secrets.compare_digest(value, token)
+
+
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except ValueError:
+        return {}
+    if not isinstance(body, dict):
+        return {}
+    return body
+
 
 def _pairs(jd_skills: list[JdSkill]) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
@@ -139,8 +190,21 @@ def load_settings() -> SkillGraphSettings:
         ) from exc
 
 
+def _configure_logging(filename: str) -> None:
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    log_dir = os.environ.get("LOG_DIR", "").strip()
+    if log_dir:
+        path = Path(log_dir) / filename
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            handlers.append(logging.FileHandler(path, encoding="utf-8"))
+        except OSError:
+            pass
+    logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=handlers, force=True)
+
+
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    _configure_logging("skillgraph.log")
     settings = load_settings()
     if len(settings.skillgraph_token) < 16:
         raise RuntimeError("Startup failed. SKILLGRAPH_TOKEN must be at least 16 characters.")

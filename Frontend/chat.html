@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkillProof AI - Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="app.html">SkillProof AI</a>
+      <nav class="nav" aria-label="Account">
+        <a href="app.html">New analysis</a>
+        <a href="history.html">History</a>
+        <a href="chat.html" aria-current="page">Chat</a>
+        <a href="compare.html">Compare</a>
+        <a href="admin.html" data-admin hidden>Admin</a>
+        <span class="user-email" data-email></span>
+        <button class="button button-danger" type="button" data-delete-account>Delete my data</button>
+        <button class="button button-quiet" type="button" data-logout>Log out</button>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <h1>Chat</h1>
+    <p class="lede">Ask about your latest analysis. Answers cite that analysis, or say they don't know. Try "What if I learn Docker?"</p>
+    <div id="chatLog" class="chat-log"></div>
+    <form id="chatForm" class="card">
+      <label for="message">Message</label>
+      <textarea id="message" name="message" maxlength="2000" required placeholder="What is missing for this role?"></textarea>
+      <p id="chatError" class="banner banner-error" hidden></p>
+      <div class="form-actions">
+        <button class="button button-primary" type="submit">Send</button>
+      </div>
+    </form>
+  </main>
+  <script type="module" src="js/chat.js"></script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import subprocess
 import sys
@@ -12,6 +13,28 @@ from app.config import Settings, format_settings_error
 from app.main import app
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_mcp_probe_is_not_run_on_the_server_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, bool] = {}
+
+    def fake_probe(skills: dict) -> None:
+        del skills
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            seen["running"] = False
+        else:
+            seen["running"] = True
+
+    class ProbeSettings:
+        mcp_probe = True
+
+    monkeypatch.setattr("app.main.load_settings", lambda: ProbeSettings())
+    monkeypatch.setattr("app.main.probe_servers", fake_probe)
+    with TestClient(app):
+        pass
+    assert seen["running"] is False
 
 
 def test_healthz() -> None:

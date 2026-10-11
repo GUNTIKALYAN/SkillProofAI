@@ -1,75 +1,149 @@
-name: CI – Dockerized SkillProof App
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 
 jobs:
-  build-test-push:
+  test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: skillproof
+          POSTGRES_PASSWORD: skillproof
+          POSTGRES_DB: skillproof
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skillproof -d skillproof"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      neo4j:
+        image: neo4j:5.26.0
+        env:
+          NEO4J_AUTH: neo4j/skillproof-neo4j
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p skillproof-neo4j 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 18
+
+    env:
+      SKILLPROOF_INTEGRATION: "1"
+      STACK_DATABASE_URL: postgresql://skillproof:skillproof@localhost:5432/skillproof
+      STACK_REDIS_URL: redis://localhost:6379/0
+      STACK_NEO4J_URI: bolt://localhost:7687
+      STACK_NEO4J_USER: neo4j
+      STACK_NEO4J_PASSWORD: skillproof-neo4j
 
     steps:
-      
-      # Checkout
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # Docker setup
+      - name: Refuse a tracked env file
+        run: test -z "$(git ls-files .env)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install ruff==0.17.0 pip-audit==2.10.1
+
+      - name: Ruff
+        working-directory: Backend
+        run: ruff check .
+
+      - name: Backend tests
+        working-directory: Backend
+        run: pytest
+
+      - name: Skill-Graph tests
+        working-directory: mcp_servers/skillgraph
+        run: python -m pytest
+
+      - name: Tavily MCP tests
+        working-directory: mcp_servers/tavily
+        run: python -m pytest
+
+      - name: Verify MCP tests
+        working-directory: mcp_servers/verify
+        run: python -m pytest
+
+      - name: GitHub MCP tests
+        working-directory: mcp_servers/github
+        run: python -m pytest
+
+      - name: Dependency audit
+        run: |
+          pip-audit -r requirements.txt
+          pip-audit -r mcp_servers/skillgraph/requirements.txt
+          pip-audit -r mcp_servers/tavily/requirements.txt
+          pip-audit -r mcp_servers/verify/requirements.txt
+          pip-audit -r mcp_servers/github/requirements.txt
+
+  images:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # BACKEND
-
-      - name: Build backend image
+      - name: Build images
         run: |
           docker build -f Backend/Dockerfile -t skillproof-backend:ci .
-
-      - name: Run backend tests
-        run: |
-          docker run --rm -e GROQ_API_KEY=test_dummy_key skillproof-backend:ci pytest
-
-      - name: Build skill graph image
-        run: |
           docker build -f mcp_servers/skillgraph/Dockerfile -t skillproof-skillgraph:ci mcp_servers/skillgraph
-
-      - name: Run skill graph tests
-        run: |
-          docker run --rm --entrypoint python skillproof-skillgraph:ci -m pytest
-
-      - name: Build Tavily MCP image
-        run: |
           docker build -f mcp_servers/tavily/Dockerfile -t skillproof-tavily:ci mcp_servers/tavily
-
-      - name: Run Tavily MCP tests
-        run: |
-          docker run --rm --entrypoint python skillproof-tavily:ci -m pytest
-
-      - name: Build Verify MCP image
-        run: |
           docker build -f mcp_servers/verify/Dockerfile -t skillproof-verify:ci mcp_servers/verify
-
-      - name: Run Verify MCP tests
-        run: |
-          docker run --rm --entrypoint python skillproof-verify:ci -m pytest
-
-      # FRONTEND
-
-      - name: Build frontend image
-        run: |
+          docker build -f mcp_servers/github/Dockerfile -t skillproof-github:ci mcp_servers/github
           docker build -t skillproof-frontend:ci ./Frontend
 
-      # DOCKER HUB LOGIN (main only)
+      - name: Images do not run as root
+        run: |
+          for image in skillproof-backend:ci skillproof-skillgraph:ci skillproof-tavily:ci skillproof-verify:ci skillproof-github:ci; do
+            id="$(docker create "$image")"
+            user="$(docker inspect --format '{{.Config.User}}' "$id")"
+            docker rm "$id" >/dev/null
+            test "$user" = "app"
+          done
+          id="$(docker create skillproof-frontend:ci)"
+          user="$(docker inspect --format '{{.Config.User}}' "$id")"
+          docker rm "$id" >/dev/null
+          test -n "$user"
+          test "$user" != "root"
+
       - name: Login to Docker Hub
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # PUSH IMAGES (main only)
       - name: Push backend image
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:latest
           docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:${{ github.sha }}
@@ -77,7 +151,7 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:${{ github.sha }}
 
       - name: Push frontend image
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           docker tag skillproof-frontend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:latest
           docker tag skillproof-frontend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:${{ github.sha }}

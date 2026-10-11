@@ -1,4 +1,27 @@
 services:
+  traefik:
+    image: traefik:v3.6
+    container_name: skillproof-traefik
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.api.address=:8000
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./deploy/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - app
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: skillproof-postgres
@@ -15,25 +38,56 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - mcp
 
   backend:
     build:
       context: .
       dockerfile: Backend/Dockerfile
-    container_name: skillproof-backend
+    deploy:
+      replicas: 2
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-skillproof}:${POSTGRES_PASSWORD:-skillproof}@postgres:5432/${POSTGRES_DB:-skillproof}
       SKILLGRAPH_URL: http://skillgraph:8000/mcp
       REDIS_URL: redis://redis:6379/0
-      GITHUB_MCP_URL: http://mcp-github:8082/mcp
+      GITHUB_MCP_URL: http://mcp-github:8000/mcp
       TAVILY_MCP_URL: http://mcp-tavily:8000/mcp
       VERIFY_MCP_URL: http://mcp-verify:8000/mcp
       GITHUB_TOKEN: ""
       TAVILY_API_KEY: ""
-    ports:
-      - "8000:8000"
+      MCP_PROBE: "true"
+    volumes:
+      - ./Backend/.logs:/app/.logs
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=skillproof-app
+      - traefik.http.routers.api.rule=PathPrefix(`/api`) || Path(`/healthz`) || Path(`/readyz`) || Path(`/metrics`)
+      - traefik.http.routers.api.entrypoints=api
+      - traefik.http.routers.api.priority=100
+      - traefik.http.routers.api.middlewares=secure-headers@file,ip-limit@file,body-limit@file
+      - traefik.http.routers.api.service=api
+      - traefik.http.routers.api-tls.rule=PathPrefix(`/api`) || Path(`/healthz`) || Path(`/readyz`) || Path(`/metrics`)
+      - traefik.http.routers.api-tls.entrypoints=websecure
+      - traefik.http.routers.api-tls.tls=true
+      - traefik.http.routers.api-tls.priority=100
+      - traefik.http.routers.api-tls.middlewares=secure-headers@file,ip-limit@file,body-limit@file
+      - traefik.http.routers.api-tls.service=api
+      - traefik.http.services.api.loadbalancer.server.port=8000
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,6 +101,9 @@ services:
         condition: service_started
       mcp-verify:
         condition: service_started
+    networks:
+      - app
+      - mcp
     restart: unless-stopped
 
   worker:
@@ -61,11 +118,14 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-skillproof}:${POSTGRES_PASSWORD:-skillproof}@postgres:5432/${POSTGRES_DB:-skillproof}
       SKILLGRAPH_URL: http://skillgraph:8000/mcp
       REDIS_URL: redis://redis:6379/0
-      GITHUB_MCP_URL: http://mcp-github:8082/mcp
+      GITHUB_MCP_URL: http://mcp-github:8000/mcp
       TAVILY_MCP_URL: http://mcp-tavily:8000/mcp
       VERIFY_MCP_URL: http://mcp-verify:8000/mcp
       GITHUB_TOKEN: ""
       TAVILY_API_KEY: ""
+      MCP_PROBE: "true"
+    volumes:
+      - ./Backend/.logs:/app/.logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +139,9 @@ services:
         condition: service_started
       mcp-verify:
         condition: service_started
+    networks:
+      - app
+      - mcp
     restart: unless-stopped
 
   redis:
@@ -91,6 +154,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - mcp
 
   neo4j:
     image: neo4j:5.26.0
@@ -108,6 +173,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - mcp
 
   skillgraph:
     build:
@@ -120,6 +187,9 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-skillproof-neo4j}
       SKILLGRAPH_PUBLIC_URL: http://skillgraph:8000/mcp
+      LOG_DIR: /logs/mcp
+    volumes:
+      - ./Backend/.logs:/logs
     depends_on:
       neo4j:
         condition: service_healthy
@@ -135,16 +205,24 @@ services:
       timeout: 5s
       retries: 20
       start_period: 20s
+    networks:
+      - mcp
     restart: unless-stopped
 
   mcp-github:
-    image: ghcr.io/github/github-mcp-server:v0.31.0
+    build:
+      context: ./mcp_servers/github
     container_name: skillproof-mcp-github
-    command: ["http", "--port", "8082", "--read-only", "--toolsets", "repos"]
     environment:
-      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_TOOLSETS: repos
-      GITHUB_READ_ONLY: "true"
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_MCP_TOKEN: ${GITHUB_MCP_TOKEN:-}
+      GITHUB_PUBLIC_URL: http://mcp-github:8000/mcp
+      LOG_DIR: /logs/mcp
+    volumes:
+      - ./Backend/.logs:/logs
+    networks:
+      - app
+      - mcp
     restart: unless-stopped
 
   mcp-tavily:
@@ -155,6 +233,12 @@ services:
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       TAVILY_MCP_TOKEN: ${TAVILY_MCP_TOKEN:-}
       TAVILY_PUBLIC_URL: http://mcp-tavily:8000/mcp
+      LOG_DIR: /logs/mcp
+    volumes:
+      - ./Backend/.logs:/logs
+    networks:
+      - app
+      - mcp
     restart: unless-stopped
 
   mcp-verify:
@@ -166,9 +250,15 @@ services:
       VERIFY_MCP_TOKEN: ${VERIFY_MCP_TOKEN:-}
       REDIS_URL: redis://redis:6379/0
       VERIFY_PUBLIC_URL: http://mcp-verify:8000/mcp
+      LOG_DIR: /logs/mcp
+    volumes:
+      - ./Backend/.logs:/logs
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      - app
+      - mcp
     restart: unless-stopped
 
   frontend:
@@ -176,10 +266,28 @@ services:
       context: ./Frontend
     container_name: skillproof-frontend
     ports:
-      - "3000:80"
+      - "3000:8080"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=PathPrefix(`/`)
+      - traefik.http.routers.web.entrypoints=websecure
+      - traefik.http.routers.web.tls=true
+      - traefik.http.routers.web.priority=1
+      - traefik.http.routers.web.middlewares=secure-headers@file,ip-limit@file
+      - traefik.docker.network=skillproof-app
+      - traefik.http.services.web.loadbalancer.server.port=8080
     depends_on:
       - backend
+    networks:
+      - app
     restart: unless-stopped
+
+networks:
+  app:
+    name: skillproof-app
+  mcp:
+    name: skillproof-mcp
+    internal: true
 
 volumes:
   postgres_data:

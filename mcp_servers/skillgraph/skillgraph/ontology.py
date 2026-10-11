@@ -105,6 +105,9 @@ class MemoryStore:
             return []
         return list(self._alias_names.get(skill.key, []))
 
+    def ping(self) -> None:
+        return None
+
 
 def load_document(path: Path | None = None) -> Document:
     source = path or default_data_path()

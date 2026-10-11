@@ -18,7 +18,7 @@ def write_step(
     error: str | None,
 ) -> None:
     ctx = get_run()
-    if ctx is None:
+    if ctx is None or not ctx.trace:
         return
     latency = int((time.perf_counter() - started) * 1000)
     row = AgentStep(

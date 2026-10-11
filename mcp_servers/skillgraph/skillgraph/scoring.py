@@ -30,6 +30,8 @@ class SkillStore(Protocol):
 
     def aliases(self, canonical: str) -> list[str]: ...
 
+    def ping(self) -> None: ...
+
 
 def canonicalize(store: SkillStore, text: str) -> CanonicalSkill:
     resolved = store.resolve(text)

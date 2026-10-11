@@ -33,8 +33,11 @@ class MemoryBucket:
 
 
 class RedisBucket:
-    def __init__(self, url: str) -> None:
-        self._redis = redis.Redis.from_url(url, socket_timeout=2, socket_connect_timeout=2)
+    def __init__(self, url: str, client: object | None = None) -> None:
+        if client is None:
+            self._redis = redis.Redis.from_url(url, socket_timeout=2, socket_connect_timeout=2)
+        else:
+            self._redis = client
 
     def take(self, server: str) -> bool:
         limit = BUCKET_LIMITS.get(server, _DEFAULT_LIMIT)

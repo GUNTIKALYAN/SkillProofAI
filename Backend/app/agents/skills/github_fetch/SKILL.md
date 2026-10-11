@@ -2,7 +2,7 @@
 name: github_fetch
 description: Read public repository metadata for one GitHub username.
 tools:
-  - github.search_repositories
+  - github.list_public_repos
 inputs:
   - github_username
 outputs:
@@ -15,7 +15,7 @@ limits:
 Role: read public repository names, languages, and short descriptions.
 
 Steps:
-1. Search repositories for the username.
+1. Call list_public_repos with the username. A username is required.
 2. Keep the name, the main language, and a short description.
 
 Rules:

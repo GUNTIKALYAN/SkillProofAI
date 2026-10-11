@@ -4,10 +4,12 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.limits import limit_auth
 from app.config import get_settings
 from app.db.models import User
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserPublic
+from app.services.account import delete_account
 from app.services.auth_service import (
     EmailTaken,
     InvalidCredentials,
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/signup", status_code=201, response_model=TokenResponse)
+@router.post("/signup", status_code=201, response_model=TokenResponse, dependencies=[Depends(limit_auth)])
 def signup(
     body: SignupRequest,
     response: Response,
@@ -44,7 +46,7 @@ def signup(
     return _token_response(issued.access_token)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
 def login(
     body: LoginRequest,
     response: Response,
@@ -59,7 +61,7 @@ def login(
     return _token_response(issued.access_token)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
 def refresh(
     response: Response,
     session: Session = Depends(get_db),
@@ -76,7 +78,7 @@ def refresh(
     return _token_response(issued.access_token)
 
 
-@router.post("/logout", status_code=204)
+@router.post("/logout", status_code=204, dependencies=[Depends(limit_auth)])
 def logout(
     response: Response,
     session: Session = Depends(get_db),
@@ -90,6 +92,16 @@ def logout(
 @router.get("/me", response_model=UserPublic)
 def me(user: User = Depends(get_current_user)) -> User:
     return user
+
+
+@router.delete("/me", status_code=204)
+def delete_me(
+    response: Response,
+    session: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    delete_account(session, user)
+    _clear_refresh_cookie(response)
 
 
 def _token_response(access_token: str) -> TokenResponse:

@@ -25,7 +25,7 @@ def github_fetch(state: dict) -> dict:
         if cached is not None:
             write_step("github_fetch", 1, None, payload, {"repos": len(cached.get("repos") or [])}, 0, started, None)
             return {"github_evidence": cached}
-        raw = call_tool("github", "search_repositories", {"query": f"user:{username}"}, "github_fetch")
+        raw = call_tool("github", "list_public_repos", {"username": username}, "github_fetch")
         evidence = {"repos": _repos(raw)}
         _cache_set(key, evidence)
         write_step("github_fetch", 1, None, payload, evidence, 0, started, None)
@@ -129,6 +129,7 @@ def _repos(payload: dict) -> list[dict]:
                 "name": str(name)[:120],
                 "language": str(item.get("language") or "")[:40],
                 "description": str(item.get("description") or "")[:200],
+                "readme": str(item.get("readme") or "")[:500],
             }
         )
     return repos

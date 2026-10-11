@@ -117,7 +117,7 @@ def test_auth_and_bad_request_are_not_retried() -> None:
 def test_allowlist_blocks_a_tool_outside_the_skill() -> None:
     transport = Scripted([{"ok": True}])
     with _open_run(transport), pytest.raises(McpError, match="not allowed"):
-        call_tool("github", "search_repositories", {"query": "user:octocat"}, "match_score")
+        call_tool("github", "list_public_repos", {"username": "octocat"}, "match_score")
     assert transport.calls == 0
 
 

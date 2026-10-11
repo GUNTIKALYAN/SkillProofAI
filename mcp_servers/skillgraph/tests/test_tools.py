@@ -1,6 +1,9 @@
 import asyncio
 from typing import Any
 
+from neo4j.exceptions import Neo4jError
+from starlette.testclient import TestClient
+
 from skillgraph.ontology import MemoryStore, load_document
 from skillgraph.scoring import (
     audit_skills,
@@ -11,7 +14,6 @@ from skillgraph.scoring import (
     what_if_learn,
 )
 from skillgraph.server import build_server
-from starlette.testclient import TestClient
 
 TOKEN = "test-skillgraph-token"
 PUBLIC = "http://skillgraph:8000/mcp"
@@ -122,6 +124,57 @@ def test_each_tool_from_the_mcp_client() -> None:
     assert related["known"] is True
     assert "Machine Learning" in explained["ancestors"]
     assert learned["delta"] == 0.2
+
+
+def test_readyz_checks_the_graph_without_a_token() -> None:
+    server = build_server(_store(), TOKEN, PUBLIC, "0.0.0.0", 8000)
+    with TestClient(server.streamable_http_app()) as client:
+        response = client.get("/readyz")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_readyz_is_unavailable_when_neo4j_fails() -> None:
+    server = build_server(_Down(), TOKEN, PUBLIC, "0.0.0.0", 8000)
+    with TestClient(server.streamable_http_app()) as client:
+        response = client.get("/readyz")
+    assert response.status_code == 503
+
+
+class _Down:
+    def ping(self) -> None:
+        raise Neo4jError("down")
+
+
+def test_admin_alias_requires_the_token_and_a_known_skill() -> None:
+    server = build_server(_AdminStore(), TOKEN, PUBLIC, "0.0.0.0", 8000)
+    with TestClient(server.streamable_http_app()) as client:
+        missing = client.post("/admin/alias", json={"name": "sklearn", "canonical": "Python"})
+        linked = client.post(
+            "/admin/alias",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={"name": "sklearn", "canonical": "Python"},
+        )
+        missing_skill = client.post(
+            "/admin/alias",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={"name": "sklearn", "canonical": "Missing"},
+        )
+    assert missing.status_code == 401
+    assert linked.status_code == 200
+    assert missing_skill.status_code == 404
+
+
+class _AdminStore:
+    def add_skill(self, name: str) -> bool:
+        return bool(name.strip())
+
+    def add_alias(self, name: str, canonical: str) -> bool:
+        del name
+        return canonical == "Python"
+
+    def ping(self) -> None:
+        return None
 
 
 def test_missing_bearer_token_is_rejected() -> None:

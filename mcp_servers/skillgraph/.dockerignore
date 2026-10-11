@@ -8,5 +8,6 @@ htmlcov/
 venv/
 .venv/
 .env
+.logs/
 .DS_Store
 Thumbs.db
