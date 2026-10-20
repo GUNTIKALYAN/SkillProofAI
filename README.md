@@ -1,38 +1,42 @@
 # SkillProofAI
 
-SkillProofAI compares one resume with a job description and returns a **JD Match Score**, a skill audit (matched, partial, missing), and an action plan. GitHub activity is a **signal**, not proof. The product never labels a person "fake".
+SkillProofAI shows a student or early-career candidate how a resume and a public GitHub profile match one job description. The result is a **JD Match Score**, a skill audit (matched, partial, or missing), and a learning plan. GitHub is a **signal, not proof**. The product never labels a person "fake".
 
-A chat window can already critique a resume. This only wins where a chat window cannot:
+It is not a chat window with a resume pasted in:
 
-1. **Cross-checked evidence.** Public GitHub repos (language, description, README text) are compared with resume claims. A repo can be a tutorial, and private work is invisible, so the UI says "supported by public evidence".
-2. **The same input gives the same score.** The score comes from the skill graph, with a reason per skill. The model writes explanations and the plan. It does not pick the score.
-3. **Progress sticks around.** Past scores, a plan you can tick off, and a re-run that shows the score change.
-4. **Several jobs, one profile.** Compare up to 10 job descriptions and see the single skill that unlocks the most of them.
-5. **What-if.** "What if I learn X?" recomputes the score from the graph.
+- Public GitHub repos are checked against the claims. Private work stays invisible, and a repo may be a copy.
+- The score comes from the skill graph, so the same input gives the same number, with a reason per skill.
+- Past runs stay in history. One profile can be compared across job descriptions.
+- "What if I learn X?" recomputes the score through the graph.
 
 ## Architecture
 
 ```
-Browser (HTML, CSS, JS)
+Browser (HTML + CSS + JS)
         |
-   Traefik  — TLS, routing, load balancing, coarse IP limit
+gateway  (FastAPI, the only published port)
+  - request id, one JSON log line per request
+  - route policy: public / user / admin  (checks the JWT)
+  - Redis rate limits, 5 MB body limit
+  - serves the HTML/CSS/JS files, proxies /api/* to the backend
         |
-   FastAPI (two replicas, no in-memory session state)
-     |-- auth, analyses, chat, compare, admin, /metrics
-     |-- Postgres  — users, analyses, traces, chat
-     |-- Redis     — rate limits, cache, job queue, shared metrics
-     |
-     +-- worker (ARQ) runs the LangGraph supervisor
-           |-- Skill-Graph MCP  -> Neo4j (skill ontology only)
-           |-- GitHub MCP       (list_public_repos, username required)
-           |-- Tavily MCP       (learning resources)
-           |-- Verify MCP       (company name only)
-           +-- Groq             (extraction, explanations, plan)
+backend  (FastAPI, internal only)
+  - verifies the JWT again, loads the user from PostgreSQL (blocked? role?)
+  - ownership checks, analyses, chat, admin
+  - background task -> LangGraph supervisor
+        |
+  mcp_client.py   (token, allowlist, budget, rate limit, 3 attempts)
+        |
+mcp  (one MCP server, 9 tools, one bearer token, internal only)
+  - skillgraph tools (6)  -> Neo4j
+  - list_public_repos     -> GitHub API
+  - tavily_search         -> Tavily API
+  - check_company         -> Tavily API
+
+PostgreSQL: backend only        Redis: rate limiting only (gateway + mcp_client)
 ```
 
-Neo4j stores the skill ontology only. Candidate data stays in Postgres. MCP tools are read-only and never see the user's JWT.
-
-The Skill-Graph container has no published port and sits on an internal Docker network. GitHub, Tavily, and Verify also have no published ports. They join that internal network and a second network, because they have to call the public GitHub and Tavily APIs. The worker joins both networks for the same reason: Groq is on the internet.
+Six services: `gateway`, `backend`, `postgres`, `redis`, `neo4j`, `mcp`. Only the gateway publishes a port.
 
 ## Run
 
@@ -40,15 +44,13 @@ The Skill-Graph container has no published port and sits on an internal Docker n
 cp .env.example .env
 ```
 
-Fill in `.env`. At least `GROQ_API_KEY`, `JWT_SECRET`, and the MCP bearer tokens need real values. Placeholders in `.env.example` are not secrets and are not enough to boot the app. `COOKIE_SECURE=false` is for local HTTP. Set it to `true` when the site is served over HTTPS only.
+Fill in `.env`. `GROQ_API_KEY`, `JWT_SECRET` (at least 32 characters), and `MCP_TOKEN` (at least 16 characters) need real values. The placeholders are not enough to boot the app. `COOKIE_SECURE=false` is for local HTTP. Set it to `true` only when the site is served over HTTPS.
 
 ```bash
 docker compose up --build
 ```
 
-Runtime logs are written under `Backend/.logs/` while the app is running: `backend-logs`, `worker-logs`, `mcp-logs`, and `mcp/*.log` for each MCP server. Those files are not committed.
-
-Then open `https://localhost` and accept the local certificate. The API is also on `http://localhost:8000`. A direct frontend port is `http://localhost:3000`.
+Open `http://localhost:8000`. The pages and the API share that origin. Postgres, Redis, Neo4j, the MCP server, and the backend are not published.
 
 Sign up in the UI. The first admin is not a public signup. From `Backend/`:
 
@@ -56,9 +58,7 @@ Sign up in the UI. The first admin is not a public signup. From `Backend/`:
 python create_admin.py
 ```
 
-`Delete my data` removes the signed-in account, parsed resume text, analyses, chat, and refresh tokens. Resume files are not stored. Only parsed text is saved with the analysis.
-
-`/metrics` is plain Prometheus text: request latency, LLM latency, and the ARQ queue depth. It has no user data.
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` first.
 
 ## Environment
 
@@ -67,47 +67,40 @@ See `.env.example`.
 | Variable | Role |
 |---|---|
 | `GROQ_API_KEY`, `LLAMA_MODEL` | Model used for extraction, explanations, and the plan |
-| `DATABASE_URL` | Postgres URL for the API and worker |
-| `JWT_SECRET` | Signs the 15-minute access token |
-| `REDIS_URL` | Rate limits, cache, queue, metrics |
-| `SKILLGRAPH_URL`, `SKILLGRAPH_TOKEN` | Skill-Graph MCP |
-| `GITHUB_MCP_URL`, `GITHUB_MCP_TOKEN` | Our GitHub MCP server. Every analysis requires a username |
-| `GITHUB_TOKEN` | Optional GitHub API token for a higher public-repo quota |
-| `TAVILY_MCP_URL`, `TAVILY_MCP_TOKEN`, `TAVILY_API_KEY` | Learning-resource search |
-| `VERIFY_MCP_URL`, `VERIFY_MCP_TOKEN` | Company-name check |
-| `COOKIE_SECURE` | `true` in production so the refresh cookie is HTTPS-only |
-| `CORS_ORIGINS` | Explicit origins. Cookies need this. No wildcard |
+| `DATABASE_URL` | Postgres URL for the backend. Compose overrides the host to `postgres` |
+| `JWT_SECRET` | Shared by the gateway and the backend. Signs the 15-minute access token |
+| `MCP_URL`, `MCP_TOKEN` | The one MCP server and its bearer token |
+| `REDIS_URL` | Rate limits only. Compose points this at `redis` |
+| `BACKEND_URL` | Gateway proxy target. Compose sets `http://backend:8000` |
+| `GITHUB_TOKEN` | Optional. Raises the public GitHub API quota. Lives in the MCP container |
+| `TAVILY_API_KEY` | Learning links and the company-name check. Lives in the MCP container |
+| `COOKIE_SECURE` | `true` when the refresh cookie must be HTTPS-only |
+| `MCP_PROBE` | `true` checks that `skills.md` tools exist on the MCP server at startup |
 | `POSTGRES_*`, `NEO4J_PASSWORD` | Compose database passwords |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Used by `create_admin.py` |
-| `MCP_PROBE` | `true` checks MCP tools at startup |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Used only by `create_admin.py` |
 
-Do not commit `.env`. Images are built without it. CI refuses a tracked `.env`.
+Do not commit `.env`. CI refuses a tracked `.env`.
+
+## Known limits
+
+- A restart drops a running analysis. The row stays `running`. There is no queue.
+- One MCP token unlocks every tool. Per-agent control is the allowlist in `skills.md`.
+- GitHub evidence is a signal, not proof. A missing company page does not lower the score and never means "fake".
+- Auth limits are per IP. A blocked user's access token still passes the gateway until it expires. The backend rejects it.
 
 ## Tests
 
-From `Backend/`:
+From `Backend/` and from `gateway/`:
 
 ```bash
 pytest
 ruff check .
 ```
 
-Those tests use SQLite and fake LLM and MCP clients. They do not need API keys.
+Those tests use SQLite, a fake LLM, a fake MCP client, and a fake Redis. They do not need API keys.
 
-CI (`.github/workflows/ci.yml`) runs ruff, the test suite, and a live check against Postgres, Redis, and Neo4j service containers. It builds the images, checks they do not run as root, and runs `pip-audit`. Images are pushed only from `main`.
-
-To run the live service check yourself, point the `STACK_*` variables at Postgres, Redis, and Neo4j and set `SKILLPROOF_INTEGRATION=1`. In PowerShell:
-
-```powershell
-$env:SKILLPROOF_INTEGRATION = "1"
-$env:STACK_DATABASE_URL = "postgresql://skillproof:skillproof@localhost:5432/skillproof"
-$env:STACK_REDIS_URL = "redis://localhost:6379/0"
-$env:STACK_NEO4J_URI = "bolt://localhost:7687"
-$env:STACK_NEO4J_USER = "neo4j"
-$env:STACK_NEO4J_PASSWORD = "skillproof-neo4j"
-pytest app/tests/test_stack.py
-```
+CI runs those two commands for the backend and the gateway. It does not push images.
 
 ## Interview notes
 
-Why Neo4j, why MCP, why a queue, why the refresh cookie, and what was left out: [docs/interview-notes.md](docs/interview-notes.md).
+Why the gateway, why one MCP server, why the score is deterministic, what the guard does not stop, and what was left out: [docs/interview-notes.md](docs/interview-notes.md).

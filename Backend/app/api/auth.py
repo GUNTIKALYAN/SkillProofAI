@@ -3,33 +3,29 @@ import logging
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
-from app.api.limits import limit_auth
 from app.config import get_settings
-from app.db.models import User
-from app.db.session import get_db
+from app.db import User, get_db
 from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserPublic
-from app.services.account import delete_account
-from app.services.auth_service import (
+from app.security import (
+    REFRESH_COOKIE,
+    REFRESH_COOKIE_PATH,
     EmailTaken,
     InvalidCredentials,
+    access_token_ttl_seconds,
+    get_current_user,
     login_user,
     refresh_session,
     register_user,
     revoke_refresh_token,
 )
-from app.services.tokens import (
-    REFRESH_COOKIE,
-    REFRESH_COOKIE_PATH,
-    access_token_ttl_seconds,
-)
+from app.services.account import delete_account
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/signup", status_code=201, response_model=TokenResponse, dependencies=[Depends(limit_auth)])
+@router.post("/signup", status_code=201, response_model=TokenResponse)
 def signup(
     body: SignupRequest,
     response: Response,
@@ -46,7 +42,7 @@ def signup(
     return _token_response(issued.access_token)
 
 
-@router.post("/login", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
+@router.post("/login", response_model=TokenResponse)
 def login(
     body: LoginRequest,
     response: Response,
@@ -61,7 +57,7 @@ def login(
     return _token_response(issued.access_token)
 
 
-@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
+@router.post("/refresh", response_model=TokenResponse)
 def refresh(
     response: Response,
     session: Session = Depends(get_db),
@@ -78,7 +74,7 @@ def refresh(
     return _token_response(issued.access_token)
 
 
-@router.post("/logout", status_code=204, dependencies=[Depends(limit_auth)])
+@router.post("/logout", status_code=204)
 def logout(
     response: Response,
     session: Session = Depends(get_db),

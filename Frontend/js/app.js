@@ -1,17 +1,32 @@
 import { api } from "./api.js";
 import { requireUser } from "./guard.js";
-import { clear, el, externalLink, fillList, formatScore, formatWhen, safeHttpUrl } from "./render.js";
+import {
+  clear,
+  el,
+  emptyState,
+  errorBox,
+  externalLink,
+  fillList,
+  formatScore,
+  formatWhen,
+  limitMessage,
+  loadingNote,
+  safeHttpUrl,
+} from "./render.js";
 
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_JOBS = 10;
 const POLL_MS = 2000;
 const POLL_LIMIT = 150;
+const VIEWS = ["new", "results", "history", "compare"];
+const STEPS = ["GitHub", "Match score", "Experience check", "Skill audit", "Action plan"];
+
+let currentId = "";
 
 const user = await requireUser();
 if (user) start();
 
 function start() {
-  const params = new URLSearchParams(window.location.search);
-  const existing = params.get("id");
   const form = document.querySelector("#analyzeForm");
   const fileInput = document.querySelector("#resumeFile");
   fileInput.addEventListener("change", () => {
@@ -21,22 +36,63 @@ function start() {
     event.preventDefault();
     submitAnalysis(form);
   });
-  if (existing) {
-    document.querySelector("#composer").hidden = true;
-    watch(existing);
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => openView(button.dataset.view));
+  });
+  const fields = document.querySelector("#jobFields");
+  addJobField(fields);
+  addJobField(fields);
+  document.querySelector("#addJob").addEventListener("click", () => {
+    if (fields.querySelectorAll("textarea").length < MAX_JOBS) addJobField(fields);
+  });
+  document.querySelector("#compareForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    rankJobs(fields);
+  });
+  window.addEventListener("popstate", showFromLocation);
+  showFromLocation();
+}
+
+function showFromLocation() {
+  const id = new URLSearchParams(window.location.search).get("id");
+  if (id) {
+    currentId = id;
+    showView("results");
+    watch(id);
+    return;
   }
+  const hash = window.location.hash.replace("#", "");
+  showView(VIEWS.includes(hash) ? hash : "new");
+}
+
+function openView(name) {
+  if (name === "results" && currentId) {
+    window.history.pushState(null, "", `app.html?id=${encodeURIComponent(currentId)}`);
+    showView("results");
+    return;
+  }
+  window.history.pushState(null, "", `app.html#${name}`);
+  showView(name);
+}
+
+function showView(name) {
+  for (const view of VIEWS) {
+    document.querySelector(`#view-${view}`).hidden = view !== name;
+    document.querySelector(`[data-view="${view}"]`).setAttribute("aria-selected", view === name ? "true" : "false");
+  }
+  if (name === "history") loadHistory();
+  if (name === "results" && !currentId) showResultsEmpty();
 }
 
 async function submitAnalysis(form) {
   const error = document.querySelector("#formError");
-  error.hidden = true;
+  hideNote(error);
   const file = form.elements.resume.files[0];
   const jd = form.elements.jd_text.value.trim();
   const username = form.elements.github_username.value.trim();
   const problem = validate(file, jd, username);
   if (problem) {
-    error.hidden = false;
-    error.textContent = problem;
+    showNote(error, errorBox(problem));
     return;
   }
   const body = new FormData();
@@ -47,14 +103,13 @@ async function submitAnalysis(form) {
   button.disabled = true;
   try {
     const accepted = await api("/api/analyses", { method: "POST", body });
-    window.history.replaceState(null, "", `app.html?id=${encodeURIComponent(accepted.job_id)}`);
-    document.querySelector("#composer").hidden = true;
-    await watch(accepted.job_id);
+    currentId = accepted.job_id;
+    window.history.replaceState(null, "", `app.html?id=${encodeURIComponent(currentId)}`);
+    showView("results");
+    await watch(currentId);
   } catch (err) {
-    error.hidden = false;
-    error.textContent = err.status === 429
-      ? `Too many analyses. Try again in ${err.retryAfter || 60} seconds.`
-      : (err.message || "Could not start the analysis");
+    const message = err.status === 429 ? limitMessage(err) : (err.message || "Could not start the analysis.");
+    showNote(error, errorBox(message, () => submitAnalysis(form)));
   } finally {
     button.disabled = false;
   }
@@ -67,57 +122,75 @@ function validate(file, jd, username) {
   if (file.size > MAX_BYTES) return "Resume must be 5 MB or smaller.";
   if (jd.length < 10) return "Paste a job description of at least 10 characters.";
   if (!username) return "Enter a GitHub username.";
-  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(username)) {
-    return "GitHub username is invalid.";
-  }
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(username)) return "GitHub username is invalid.";
   return "";
 }
 
 async function watch(id) {
   const progress = document.querySelector("#progress");
-  const status = document.querySelector("#progressStatus");
+  const results = document.querySelector("#results");
+  clear(results);
   for (let attempt = 0; attempt < POLL_LIMIT; attempt += 1) {
     let row;
     try {
       row = await api(`/api/analyses/${encodeURIComponent(id)}`);
     } catch (err) {
       progress.hidden = false;
-      status.textContent = err.message || "Could not load this analysis.";
+      clear(progress);
+      progress.append(errorBox(err.message || "Could not load this analysis.", () => watch(id)));
       return;
     }
     if (row.status === "completed" || row.status === "failed") {
       progress.hidden = true;
+      clear(progress);
       renderResult(id, row);
       return;
     }
     progress.hidden = false;
-    status.textContent = row.status === "running"
-      ? "Reading the resume, scoring skills, and writing the plan."
-      : "Your analysis is queued.";
+    clear(progress);
+    progress.append(loadingNote("Analysing..."));
+    progress.append(el("p", {
+      text: row.status === "running" ? "The checks below are running." : "Your analysis is queued.",
+    }));
+    const list = el("ul", { className: "plain-list" });
+    for (const step of STEPS) list.append(el("li", { text: step }));
+    progress.append(list);
     await delay(POLL_MS);
   }
-  status.textContent = "This is taking longer than expected. Open History to check it later.";
+  clear(progress);
+  progress.append(errorBox("This is taking longer than expected.", () => watch(id)));
+}
+
+function showResultsEmpty() {
+  const results = document.querySelector("#results");
+  document.querySelector("#progress").hidden = true;
+  clear(results);
+  results.append(emptyState("No analysis open. Run your first one.", "New analysis", () => openView("new")));
 }
 
 async function renderResult(id, row) {
   const root = document.querySelector("#results");
-  root.hidden = false;
   clear(root);
   const result = row.result || {};
   root.append(el("p", { className: "helper", text: formatWhen(row.created_at) }));
   if (row.status === "failed" || result.error) {
-    const banner = el("p", { className: "banner banner-error", text: result.error || "Analysis failed" });
-    root.append(banner);
+    root.append(errorBox(result.error || "Analysis failed.", () => openView("new")));
   }
   if (result.partial) {
-    root.append(el("p", { className: "banner", text: "This result is incomplete." }));
+    root.append(el("p", { className: "banner banner-warn", text: "Some checks could not run." }));
   }
-  root.append(scoreCard(result));
+  const layout = el("div", { className: "results-layout" });
+  const score = scoreCard(result);
+  score.classList.add("span-2");
+  layout.append(score);
+  layout.append(auditCard(result.audit || []));
+  layout.append(planCard(id, result.action_plan, result.checked_steps || []));
+  const experience = experienceCard(id, result);
+  experience.classList.add("span-2");
+  layout.append(experience);
+  layout.append(githubCard(result));
+  root.append(layout);
   await showScoreChange(root, id, row.score);
-  root.append(auditCard(result.audit || []));
-  root.append(planCard(id, result.action_plan, result.checked_steps || []));
-  root.append(experienceCard(id, result));
-  root.append(githubCard(result));
 }
 
 async function showScoreChange(root, id, score) {
@@ -142,14 +215,31 @@ function scoreCard(result) {
   const card = el("section", { className: "card" });
   card.append(el("h2", { text: "JD Match Score" }));
   const score = result.jd_match_score || {};
-  card.append(el("p", { className: "score", text: formatScore(score.score) }));
-  card.append(el("p", { className: "helper", text: "This is a match against this job description. It is not an employer ATS score." }));
+  const value = typeof score.score === "number" ? score.score : null;
+  const row = el("div", { className: "score-row" });
+  row.append(el("p", { className: "score", text: formatScore(value) }));
+  const track = el("div", { className: "score-track" });
+  const fill = el("div", { className: "score-fill" });
+  fill.style.width = `${barPercent(value)}%`;
+  track.append(fill);
+  row.append(track);
+  card.append(row);
+  card.append(el("p", {
+    className: "helper",
+    text: "This is a match against this job description. It is not an employer ATS score.",
+  }));
   const lines = (score.breakdown || []).map((item) => {
     const points = typeof item.points === "number" ? item.points : "";
     return `${item.skill || "Skill"} (${item.priority || "skill"}, ${points}): ${item.reason || ""}`;
   });
   fillList(card, lines, "No skill breakdown was saved.");
   return card;
+}
+
+function barPercent(score) {
+  if (typeof score !== "number") return 0;
+  if (score <= 1) return Math.round(score * 100);
+  return Math.min(100, Math.round(score));
 }
 
 function auditCard(items) {
@@ -162,10 +252,11 @@ function auditCard(items) {
     const skills = items.filter((item) => item.status === status && item.skill !== "experience");
     if (!skills.length) column.append(el("p", { className: "helper", text: "None" }));
     for (const item of skills) {
-      const row = el("div", { className: "skill-row" });
-      row.append(el("strong", { text: item.skill || "Skill" }));
-      row.append(el("p", { className: "helper", text: item.reason || "" }));
-      column.append(row);
+      const line = el("div", { className: "skill-row" });
+      line.append(el("span", { className: `badge badge-${status}`, text: status }));
+      line.append(el("strong", { text: item.skill || "Skill" }));
+      line.append(el("p", { className: "helper", text: item.reason || "" }));
+      column.append(line);
     }
     grid.append(column);
   }
@@ -197,19 +288,20 @@ function planCard(id, plan, checks) {
   }
   card.append(el("p", {
     className: "helper",
-    text: "Ticking a step does not change the score. Re-analyse after you do the work.",
+    text: "Ticking a step does not change the score. Run a new analysis after you do the work.",
   }));
-  const again = el("a", { className: "button button-quiet", text: "Re-analyse" });
-  again.href = "app.html";
+  const again = el("button", { type: "button", className: "button button-quiet", text: "New analysis" });
+  again.addEventListener("click", () => openView("new"));
   card.append(again);
   return card;
 }
 
 function stepCheck(id, skill, step, checks) {
   const label = el("label", { className: "check" });
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.checked = checks.some((item) => item.skill === skill && item.step === step);
+  const box = el("input", {
+    type: "checkbox",
+    checked: checks.some((item) => item.skill === skill && item.step === step),
+  });
   const note = el("span", { className: "helper", text: "" });
   box.addEventListener("change", async () => {
     try {
@@ -235,18 +327,24 @@ function resourceNode(resource) {
 function experienceCard(id, result) {
   const card = el("section", { className: "card" });
   card.append(el("h2", { text: "Experience signals" }));
-  if (result.experience_skipped) {
+  card.append(el("p", {
+    className: "helper",
+    text: "Dates, bullet claims, and company names are signals. They do not change the JD Match Score.",
+  }));
+  if (result.experience_error) {
+    card.append(el("p", { text: "The experience check could not run." }));
+  } else if (result.experience_skipped) {
     card.append(el("p", { text: "This resume has no Experience section, so the check was skipped." }));
   }
-  card.append(el("h3", { text: "Date issues" }));
+  card.append(el("h3", { text: "Date checks" }));
   fillList(card, dateIssues(result), "No date issues.");
-  card.append(el("h3", { text: "Unsupported bullet claims" }));
-  fillList(card, unsupportedClaims(result), "No unsupported bullet claims.");
+  card.append(el("h3", { text: "Bullet claims" }));
+  fillList(card, unsupportedClaims(result), "No bullet claims lacked supporting evidence.");
   card.append(el("h3", { text: "Companies" }));
   const companies = (result.experience && result.experience.companies) || result.companies || [];
   if (!companies.length) {
     card.append(el("p", { className: "helper", text: "No companies were checked." }));
-    if (!result.experience_skipped) card.append(urlForm(id, ""));
+    if (!result.experience_skipped && !result.experience_error) card.append(urlForm(id, ""));
     return card;
   }
   for (const company of companies) {
@@ -282,10 +380,10 @@ function unsupportedClaims(result) {
 }
 
 function companyStatus(status) {
-  if (status === "found") return "A public web page was found.";
-  if (status === "not_found") return "Couldn't find a public web presence.";
-  if (status === "ambiguous") return "Public results were ambiguous.";
-  return "The company check was skipped.";
+  if (status === "found") return "A public page mentions this name. That is not proof of employment.";
+  if (status === "not_found") return "No public page was found for this name. The score is unchanged.";
+  if (status === "ambiguous") return "Public results for this name were not clear. The score is unchanged.";
+  return "The company check did not run. The score is unchanged.";
 }
 
 function savedUrl(result, name) {
@@ -298,16 +396,20 @@ function urlForm(id, name) {
   const form = el("form", { className: "url-form" });
   let nameInput = null;
   if (!name) {
-    nameInput = el("input", { type: "text", placeholder: "Company name", maxLength: 120 });
-    form.append(nameInput);
+    const nameLabel = el("label", { text: "Company name" });
+    nameInput = el("input", { type: "text", maxLength: 120 });
+    nameLabel.append(nameInput);
+    form.append(nameLabel);
   }
-  const urlInput = el("input", { type: "url", placeholder: "Company website (optional)", maxLength: 300 });
+  const urlLabel = el("label", { text: name ? `Website for ${name}` : "Company website" });
+  const urlInput = el("input", { type: "url", placeholder: "https://", maxLength: 300 });
+  urlLabel.append(urlInput);
   const button = el("button", { type: "submit", className: "button button-quiet", text: "Save URL" });
   const note = el("p", {
     className: "helper",
-    text: "Saved with this analysis. It does not change the JD Match Score.",
+    text: "Saved with this analysis only. It does not change the JD Match Score.",
   });
-  form.append(urlInput, button, note);
+  form.append(urlLabel, button, note);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const companyName = (name || (nameInput ? nameInput.value : "")).trim();
@@ -332,6 +434,11 @@ function urlForm(id, name) {
 function githubCard(result) {
   const card = el("section", { className: "card" });
   card.append(el("h2", { text: "GitHub signal" }));
+  card.append(el("p", { className: "helper", text: "Public repository activity is a signal, not proof." }));
+  if (result.github_error) {
+    card.append(el("p", { text: "GitHub could not be read for this run." }));
+    return card;
+  }
   if (result.github_skipped) {
     card.append(el("p", { text: "GitHub was not included." }));
     return card;
@@ -340,14 +447,113 @@ function githubCard(result) {
     card.append(el("p", { text: "No GitHub signal was saved for this run." }));
     return card;
   }
-  card.append(el("p", { className: "helper", text: "Public repository activity is a signal, not verification." }));
-  const repos = (result.github && result.github.repos) || [];
+  const repos = result.github.repos || [];
   const lines = repos.map((repo) => {
     const language = repo.language ? ` (${repo.language})` : "";
     return `${repo.name || "Repository"}${language}`;
   });
   fillList(card, lines, "No public repositories were returned.");
   return card;
+}
+
+async function loadHistory() {
+  const list = document.querySelector("#historyList");
+  const trend = document.querySelector("#trend");
+  clear(list);
+  list.append(loadingNote("Loading..."));
+  let rows;
+  try {
+    rows = await api("/api/analyses");
+  } catch (err) {
+    clear(list);
+    list.append(errorBox(err.message || "Could not load history.", loadHistory));
+    return;
+  }
+  renderTrend(trend, rows);
+  clear(list);
+  if (!rows.length) {
+    list.append(emptyState("No analyses yet. Run your first one.", "New analysis", () => openView("new")));
+    return;
+  }
+  for (const row of rows) list.append(historyRow(row));
+}
+
+function renderTrend(trend, rows) {
+  clear(trend);
+  const scored = rows.filter((row) => typeof row.score === "number").slice().reverse();
+  const note = document.querySelector("#trendNote");
+  if (scored.length < 2) {
+    note.textContent = "Run another analysis to see a trend.";
+  } else {
+    note.textContent = "Oldest to newest. Each bar is that analysis's JD Match Score.";
+  }
+  for (const row of scored) {
+    const track = el("div", { className: "bar-track" });
+    const bar = el("div", { className: "bar" });
+    bar.style.height = `${barPercent(row.score)}%`;
+    bar.title = `${formatScore(row.score)} on ${formatWhen(row.created_at)}`;
+    track.append(bar);
+    trend.append(track);
+  }
+}
+
+function historyRow(row) {
+  const link = el("a", { className: "history-row" });
+  link.href = `app.html?id=${encodeURIComponent(row.id)}`;
+  const status = ["queued", "running", "completed", "failed"].includes(row.status) ? row.status : "queued";
+  link.append(el("span", { text: formatWhen(row.created_at) }));
+  link.append(el("span", { className: `badge badge-${status}`, text: status }));
+  link.append(el("span", { text: formatScore(row.score) }));
+  link.append(el("span", { className: "helper", text: row.github_username || "No GitHub" }));
+  return link;
+}
+
+function addJobField(fields) {
+  const index = fields.querySelectorAll("textarea").length + 1;
+  const label = el("label", { text: `Job ${index}` });
+  const input = el("textarea", { name: "job", required: true, placeholder: "Paste a job description." });
+  label.append(input);
+  fields.append(label);
+}
+
+async function rankJobs(fields) {
+  const error = document.querySelector("#compareError");
+  const result = document.querySelector("#compareResult");
+  hideNote(error);
+  const jobs = [...fields.querySelectorAll("textarea")].map((node) => node.value.trim()).filter(Boolean);
+  if (jobs.length < 2) {
+    showNote(error, errorBox("Add at least two job descriptions."));
+    return;
+  }
+  try {
+    const body = await api("/api/compare", { method: "POST", json: { job_descriptions: jobs } });
+    result.hidden = false;
+    clear(result);
+    result.append(el("h2", { text: "Ranked by JD Match Score" }));
+    const list = el("ol", { className: "plain-list" });
+    for (const job of body.ranked) {
+      list.append(el("li", { text: `${formatScore(job.score)} — ${job.preview}` }));
+    }
+    result.append(list);
+    const unlock = body.unlock_skill
+      ? `${body.unlock_skill} is the skill that unlocks the most of these jobs (${body.unlock_jobs}).`
+      : "No missing skill is shared across these jobs.";
+    result.append(el("p", { text: unlock }));
+  } catch (err) {
+    const message = err.status === 429 ? limitMessage(err) : (err.message || "Could not compare these jobs.");
+    showNote(error, errorBox(message, () => rankJobs(fields)));
+  }
+}
+
+function showNote(node, child) {
+  clear(node);
+  node.hidden = false;
+  node.append(child);
+}
+
+function hideNote(node) {
+  node.hidden = true;
+  clear(node);
 }
 
 function delay(ms) {

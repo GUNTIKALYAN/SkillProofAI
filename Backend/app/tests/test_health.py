@@ -31,7 +31,7 @@ def test_mcp_probe_is_not_run_on_the_server_loop(monkeypatch: pytest.MonkeyPatch
         mcp_probe = True
 
     monkeypatch.setattr("app.main.load_settings", lambda: ProbeSettings())
-    monkeypatch.setattr("app.main.probe_servers", fake_probe)
+    monkeypatch.setattr("app.main.probe_server", fake_probe)
     with TestClient(app):
         pass
     assert seen["running"] is False
@@ -44,10 +44,10 @@ def test_healthz() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_root_responds() -> None:
+def test_root_is_not_served_by_the_backend() -> None:
     with TestClient(app) as client:
         response = client.get("/")
-    assert response.status_code == 200
+    assert response.status_code == 404
 
 
 def test_config_imports_without_api_key() -> None:

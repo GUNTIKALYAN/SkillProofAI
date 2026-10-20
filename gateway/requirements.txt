@@ -1,0 +1,5 @@
+fastapi==0.143.0
+uvicorn==0.54.0
+pyjwt==2.15.1
+redis==5.2.1
+httpx==0.28.1

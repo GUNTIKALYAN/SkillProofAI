@@ -5,7 +5,7 @@ export async function requireUser() {
     try {
       await api("/api/auth/refresh", { method: "POST" });
     } catch {
-      window.location.replace("login.html");
+      window.location.replace("auth.html");
       return null;
     }
   }
@@ -15,7 +15,7 @@ export async function requireUser() {
     return user;
   } catch {
     clearToken();
-    window.location.replace("login.html");
+    window.location.replace("auth.html");
     return null;
   }
 }
@@ -42,7 +42,7 @@ function bindSession(user) {
       api("/api/auth/me", { method: "DELETE" })
         .then(() => {
           clearToken();
-          window.location.replace("login.html");
+          window.location.replace("auth.html");
         })
         .catch((err) => {
           window.alert(err.message || "Could not delete your data");
@@ -58,7 +58,7 @@ function bindSession(user) {
       })
       .finally(() => {
         clearToken();
-        window.location.replace("login.html");
+        window.location.replace("auth.html");
       });
   });
 }

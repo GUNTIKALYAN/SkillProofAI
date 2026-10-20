@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkillProof AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="auth.html">SkillProof AI</a>
+    </div>
+  </header>
+  <main class="page">
+    <section class="card narrow">
+      <h1>SkillProof AI</h1>
+      <p class="lede">See how a resume matches a job description.</p>
+      <div class="tabs" role="tablist" aria-label="Account">
+        <button class="button button-quiet" type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="loginPanel" data-tab="login">Log in</button>
+        <button class="button button-quiet" type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="signupPanel" data-tab="signup">Sign up</button>
+      </div>
+      <div id="loginPanel" role="tabpanel" aria-labelledby="tab-login">
+        <form id="loginForm">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" name="email" type="email" autocomplete="username" required>
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          <div class="form-actions">
+            <button class="button button-primary" type="submit">Log in</button>
+          </div>
+        </form>
+      </div>
+      <div id="signupPanel" role="tabpanel" aria-labelledby="tab-signup" hidden>
+        <form id="signupForm">
+          <p class="helper">This creates a user account. Admin accounts are not created here.</p>
+          <label for="signupEmail">Email</label>
+          <input id="signupEmail" name="email" type="email" autocomplete="username" required>
+          <label for="signupPassword">Password</label>
+          <input id="signupPassword" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required>
+          <p class="helper">8 to 72 characters.</p>
+          <div class="form-actions">
+            <button class="button button-primary" type="submit">Create account</button>
+          </div>
+        </form>
+      </div>
+      <div id="formError" hidden></div>
+    </section>
+  </main>
+  <script type="module" src="js/auth.js"></script>
+</body>
+</html>

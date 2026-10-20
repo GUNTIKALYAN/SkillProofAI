@@ -3,7 +3,11 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Analysis
+from app.db import Analysis
+
+
+class NotFound(Exception):
+    """The id is missing or belongs to another user."""
 
 
 def get_owned_analysis(
@@ -26,7 +30,9 @@ def completed_analysis(
 ) -> Analysis | None:
     if analysis_id is not None:
         row = get_owned_analysis(session, user_id, analysis_id)
-        if row is None or row.status != "completed":
+        if row is None:
+            raise NotFound
+        if row.status != "completed":
             return None
         return row
     return session.scalar(

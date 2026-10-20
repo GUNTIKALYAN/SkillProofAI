@@ -1,0 +1,11 @@
+target-version = "py310"
+
+[lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Query",
+]

@@ -1,5 +1,4 @@
 import logging
-import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,12 +9,14 @@ from sqlalchemy.orm import Session
 from app.agents.skills_loader import load_skills
 from app.config import get_settings
 from app.db import ChatMessage, ChatSession, User
-from app.llm.complete import LlmError, complete_json
+from app.guard import check_chat, data_block
+from app.llm import LlmError, complete_json
 from app.mcp_client import Clients, McpError, call_tool, default_clients, open_tools
+from app.schemas.chat import ChatDraft
+from app.services.analysis_access import completed_analysis
 
 logger = logging.getLogger(__name__)
 
-_WHAT_IF = re.compile(r"what if i learn\s+([A-Za-z0-9][A-Za-z0-9 .+#-]{0,78})", re.IGNORECASE)
 _UNKNOWN = "I don't know based on the saved analysis."
 
 
@@ -57,8 +58,7 @@ def answer(
     clients: Clients | None = None,
 ) -> ChatReply:
     settings = get_settings()
-    if len(message) > settings.chat_max_chars:
-        raise ValueError("Message is too long")
+    cleaned = check_chat(message, settings.chat_max_chars, str(user.id))
     if _tokens_today(session, user.id) >= settings.chat_daily_tokens:
         raise TokenBudget
     row = completed_analysis(session, user.id, analysis_id)
@@ -69,11 +69,11 @@ def answer(
         thread = ChatSession(user_id=user.id, analysis_id=row.id)
         session.add(thread)
         session.flush()
-    session.add(ChatMessage(session_id=thread.id, role="user", content=message, tokens=0))
+    session.add(ChatMessage(session_id=thread.id, role="user", content=cleaned, tokens=0))
     used = clients or default_clients()
     try:
         with open_tools("chatbot", session, used):
-            reply, tokens = _reply(message, row.result_json or {})
+            reply, tokens = _reply(cleaned, row.result_json or {})
     except (LlmError, McpError) as exc:
         logger.error("chat failed error=%s", type(exc).__name__)
         raise ChatFailed from exc
@@ -83,41 +83,16 @@ def answer(
 
 
 def _reply(message: str, result: dict) -> tuple[ChatReply, int]:
-    skill = _what_if_skill(message)
-    if skill:
-        return _what_if(skill, result), 0
-    return _talk(message, result)
-
-
-def _what_if(skill: str, result: dict) -> ChatReply:
-    learned = call_tool(
-        "what_if_learn",
-        {
-            "skill": skill,
-            "candidate_skills": list(result.get("resume_skills") or []),
-            "jd_skills": list(result.get("jd_skills") or []),
-        },
-        "chatbot",
-    )
-    before = float(learned.get("before") or 0)
-    after = float(learned.get("after") or 0)
-    name = str(learned.get("skill") or skill)
-    if not learned.get("known"):
-        text = f"I don't know {name} in the skill graph, so I can't show a new score."
-    else:
-        text = (
-            f"If you learn {name}, the JD Match Score moves from {_percent(before)} to {_percent(after)}. "
-            "This uses your saved analysis and the skill graph."
-        )
-    return ChatReply(text=text, before=before, after=after, skill=name)
-
-
-def _talk(message: str, result: dict) -> tuple[ChatReply, int]:
     brief = _brief(result)
-    payload: dict = {"message": message, "analysis": brief, "tool_results": []}
+    payload: dict = {
+        "message": data_block("user_message", message),
+        "analysis": brief,
+        "tool_results": [],
+    }
     limit = load_skills()["chatbot"].limits["max_tool_calls"]
     tokens = 0
     draft = ChatDraft(answer=_UNKNOWN, citations=[])
+    learned: dict | None = None
     calls = 0
     while calls <= limit:
         draft, used = complete_json("chatbot", payload, ChatDraft)
@@ -125,9 +100,19 @@ def _talk(message: str, result: dict) -> tuple[ChatReply, int]:
         if draft.tool is None or calls == limit:
             break
         calls += 1
-        payload["tool_results"].append(_tool_result(draft.tool.name, draft.tool.skill, result))
+        found = _tool_result(draft.tool.name, draft.tool.skill, result)
+        payload["tool_results"].append(found)
+        if found.get("tool") == "what_if_learn":
+            learned = found
     text = _ground(draft.answer, draft.citations, brief)
-    return ChatReply(text=text), tokens
+    if text == _UNKNOWN or learned is None:
+        return ChatReply(text=text), tokens
+    return ChatReply(
+        text=text,
+        before=_number(learned.get("before")),
+        after=_number(learned.get("after")),
+        skill=_skill_name(learned.get("skill")),
+    ), tokens
 
 
 def _tool_result(name: str, skill: str, result: dict) -> dict:
@@ -214,15 +199,14 @@ def _tokens_today(session: Session, user_id: uuid.UUID) -> int:
     return int(total or 0)
 
 
-def _what_if_skill(message: str) -> str | None:
-    match = _WHAT_IF.search(message.strip())
-    if match is None:
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    skill = match.group(1).strip(" .!?")
-    return skill or None
+    return float(value)
 
 
-def _percent(score: float) -> str:
-    if score <= 1:
-        return f"{round(score * 100)}%"
-    return str(round(score))
+def _skill_name(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    name = value.strip()
+    return name or None

@@ -3,11 +3,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from app.llm.complete import LlmError, complete_json
+from app.guard import DOC_MAX_CHARS, guard_document
+from app.llm import LlmError, complete_json
 
 logger = logging.getLogger(__name__)
 
-_MAX_CHARS = 20_000
+_MAX_CHARS = DOC_MAX_CHARS
 
 
 class ExtractionError(Exception):
@@ -40,7 +41,4 @@ def extract_skills(resume_text: str, jd_text: str) -> SkillExtraction:
 
 
 def clip_text(text: str, label: str) -> str:
-    if len(text) <= _MAX_CHARS:
-        return text
-    logger.info("text clipped source=%s chars=%s", label, len(text))
-    return text[:_MAX_CHARS]
+    return guard_document(label, text, _MAX_CHARS)

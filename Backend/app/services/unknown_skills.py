@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import UnknownSkill, utc_now
+from app.db import UnknownSkill, utc_now
 
 _MAX_NAME = 80
 

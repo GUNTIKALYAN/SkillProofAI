@@ -23,6 +23,13 @@ class ChatToolCall(BaseModel):
     skill: str = Field(min_length=1, max_length=80)
 
 
+class ChatReplyPublic(BaseModel):
+    text: str
+    before: float | None = None
+    after: float | None = None
+    skill: str | None = None
+
+
 class ChatDraft(BaseModel):
     answer: str = Field(min_length=1, max_length=2000)
     citations: list[str] = Field(default_factory=list)

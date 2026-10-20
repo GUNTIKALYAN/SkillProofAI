@@ -1,4 +1,21 @@
-const FIELDS = ["className", "type", "id", "placeholder", "maxLength", "value", "rel", "target"];
+const FIELDS = [
+  "className",
+  "type",
+  "id",
+  "name",
+  "placeholder",
+  "maxLength",
+  "minLength",
+  "value",
+  "rows",
+  "rel",
+  "target",
+  "htmlFor",
+  "hidden",
+  "disabled",
+  "required",
+  "checked",
+];
 
 export function el(tag, options = {}) {
   const node = document.createElement(tag);
@@ -51,4 +68,36 @@ export function formatWhen(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString();
+}
+
+export function limitMessage(err) {
+  const seconds = err && err.retryAfter != null ? err.retryAfter : 60;
+  return `Too many requests. Try again in ${seconds} seconds.`;
+}
+
+export function loadingNote(text) {
+  const wrap = el("div", { className: "loading" });
+  wrap.append(el("p", { className: "helper", text: text || "Analysing..." }));
+  wrap.append(el("div", { className: "progress-line" }));
+  return wrap;
+}
+
+export function emptyState(sentence, buttonText, onClick) {
+  const wrap = el("div", { className: "empty" });
+  wrap.append(el("p", { text: sentence }));
+  if (!buttonText) return wrap;
+  const button = el("button", { type: "button", className: "button button-primary", text: buttonText });
+  button.addEventListener("click", onClick);
+  wrap.append(button);
+  return wrap;
+}
+
+export function errorBox(message, onRetry) {
+  const box = el("div", { className: "banner banner-error" });
+  box.append(el("p", { text: message || "Something went wrong." }));
+  if (!onRetry) return box;
+  const button = el("button", { type: "button", className: "button button-quiet", text: "Retry" });
+  button.addEventListener("click", onRetry);
+  box.append(button);
+  return box;
 }

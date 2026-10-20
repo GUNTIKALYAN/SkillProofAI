@@ -1,1 +1,0 @@
-"""Tavily search MCP server."""

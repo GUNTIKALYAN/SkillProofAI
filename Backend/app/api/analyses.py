@@ -1,15 +1,20 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
-from app.api.limits import limit_analyze
 from app.api.uploads import resume_file
 from app.core.resume_parse import parse_resume
-from app.db.models import Analysis, User
-from app.db.session import get_db
+from app.db import Analysis, User, get_db
 from app.schemas.auth import (
     AnalysisPublic,
     AnalysisSummary,
@@ -18,6 +23,7 @@ from app.schemas.auth import (
 )
 from app.schemas.chat import PlanCheck
 from app.schemas.input_schema import AnalyzeRequest
+from app.security import get_current_user
 from app.services.analysis_access import (
     get_owned_analysis,
     list_owned_analyses,
@@ -25,7 +31,7 @@ from app.services.analysis_access import (
     set_plan_check,
 )
 from app.services.analysis_service import accept_analysis
-from app.services.jobs import QueueError
+from app.services.runner import execute_analysis
 from app.services.skill_extract import ExtractionError, extract_skills
 
 router = APIRouter()
@@ -61,31 +67,33 @@ def analyze_jd_route(
 
 @router.post("/map-skills", response_model=JobAccepted, status_code=202)
 def map_skills_route(
+    background: BackgroundTasks,
     resume: UploadFile = File(...),
     jd_text: str = Form(...),
     github_username: str = Form(...),
-    user: User = Depends(limit_analyze),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> JobAccepted:
     if not jd_text.strip():
         raise HTTPException(status_code=400, detail="JD text is required")
     request = _analyze_request(jd_text, github_username)
     with resume_file(resume) as resume_path:
-        return _enqueue(resume_path, request, user, session)
+        return _enqueue(resume_path, request, user, session, background)
 
 
 @router.post("/analyses", response_model=JobAccepted, status_code=202)
 @router.post("/analyze", response_model=JobAccepted, status_code=202)
 def analyze(
+    background: BackgroundTasks,
     jd_text: str = Form(...),
     github_username: str = Form(...),
     resume: UploadFile = File(...),
-    user: User = Depends(limit_analyze),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> JobAccepted:
     request = _analyze_request(jd_text, github_username)
     with resume_file(resume) as resume_path:
-        return _enqueue(resume_path, request, user, session)
+        return _enqueue(resume_path, request, user, session, background)
 
 
 @router.get("/analyses", response_model=list[AnalysisSummary])
@@ -152,14 +160,19 @@ def _parse_resume(resume_path: str) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _enqueue(resume_path: str, request: AnalyzeRequest, user: User, session: Session) -> JobAccepted:
+def _enqueue(
+    resume_path: str,
+    request: AnalyzeRequest,
+    user: User,
+    session: Session,
+    background: BackgroundTasks,
+) -> JobAccepted:
     try:
         resume = parse_resume(resume_path)
         job_id = accept_analysis(session, user.id, request, resume)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except QueueError as exc:
-        raise HTTPException(status_code=503, detail="The job queue is unavailable") from exc
+    background.add_task(execute_analysis, str(job_id))
     return JobAccepted(job_id=job_id, status="queued")
 
 

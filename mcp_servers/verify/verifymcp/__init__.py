@@ -1,1 +1,0 @@
-"""Company lookup MCP server."""

@@ -3,8 +3,8 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import ROLE_ADMIN, User
-from app.services.passwords import hash_password
+from app.db import ROLE_ADMIN, User
+from app.security import hash_password
 
 logger = logging.getLogger(__name__)
 

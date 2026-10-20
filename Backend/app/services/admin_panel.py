@@ -1,3 +1,4 @@
+import logging
 import math
 import uuid
 from datetime import datetime, timezone
@@ -5,20 +6,21 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.agents.skills.loader import load_skills
-from app.db.models import (
+from app.agents.skills_loader import load_skills
+from app.db import (
     ROLE_ADMIN,
     STATUS_ACTIVE,
     STATUS_BLOCKED,
     AgentRun,
     AgentStep,
     Analysis,
-    AuditLog,
     ChatMessage,
     ChatSession,
     User,
 )
 from app.services.account import delete_owned
+
+logger = logging.getLogger(__name__)
 
 _TRACE_LIMIT = 50
 
@@ -49,6 +51,7 @@ def overview(session: Session) -> dict:
         "analyses": analyses,
         "analyses_today": analyses_today,
         "average_score": float(average or 0),
+        "failed": failed,
         "error_rate": (failed / analyses) if analyses else 0,
         "tokens": tokens,
         "p95_latency_ms": _p95(latencies),
@@ -78,14 +81,14 @@ def search_users(session: Session, query: str) -> list[dict]:
 def set_block(session: Session, admin_id: uuid.UUID, user_id: uuid.UUID, blocked: bool) -> User:
     user = _editable(session, user_id)
     user.status = STATUS_BLOCKED if blocked else STATUS_ACTIVE
-    _audit(session, admin_id, "block_user" if blocked else "unblock_user", str(user.id))
+    logger.info("user status changed admin=%s user=%s blocked=%s", admin_id, user.id, blocked)
     session.commit()
     return user
 
 
 def remove_user(session: Session, admin_id: uuid.UUID, user_id: uuid.UUID) -> None:
     user = _editable(session, user_id)
-    _audit(session, admin_id, "delete_user", str(user.id))
+    logger.info("user deleted admin=%s user=%s", admin_id, user.id)
     session.flush()
     delete_owned(session, user.id)
     session.delete(user)
@@ -141,32 +144,6 @@ def trace_detail(session: Session, run_id: uuid.UUID) -> dict | None:
     }
 
 
-def rate_limits(session: Session) -> dict:
-    hits = session.scalars(
-        select(AuditLog).where(AuditLog.action == "rate_limit").order_by(AuditLog.at.desc()).limit(_TRACE_LIMIT)
-    )
-    top = session.execute(
-        select(User.email, func.count())
-        .join(AuditLog, AuditLog.user_id == User.id)
-        .where(AuditLog.action == "rate_limit")
-        .group_by(User.email)
-        .order_by(func.count().desc())
-        .limit(10)
-    )
-    return {
-        "hits": [
-            {"at": row.at, "target": row.target, "user_id": row.user_id}
-            for row in hits
-        ],
-        "top_users": [{"email": email, "hits": int(count)} for email, count in top],
-    }
-
-
-def audit_rows(session: Session) -> list[AuditLog]:
-    rows = session.scalars(select(AuditLog).order_by(AuditLog.at.desc()).limit(_TRACE_LIMIT))
-    return list(rows)
-
-
 def agent_files() -> list[dict]:
     skills = load_skills()
     return [
@@ -188,10 +165,6 @@ def _editable(session: Session, user_id: uuid.UUID) -> User:
     if user.role == ROLE_ADMIN:
         raise AdminProtected
     return user
-
-
-def _audit(session: Session, admin_id: uuid.UUID, action: str, target: str) -> None:
-    session.add(AuditLog(admin_id=admin_id, action=action, target=target))
 
 
 def _chat_count(session: Session, user_id: uuid.UUID) -> int:

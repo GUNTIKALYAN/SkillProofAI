@@ -3,17 +3,20 @@ import threading
 import time
 import uuid
 
-from app.agents.graph import get_graph
-from app.agents.skills.loader import allowlist, load_skills, skill_hash
-from app.agents.trace import write_step
+from app.agents.graph import get_graph, write_step
+from app.agents.skills_loader import allowlist, load_skills, skill_hash
 from app.config import get_settings
-from app.db.models import AgentRun, Analysis
-from app.db.session import session_scope
-from app.mcp_client.context import RunContext, reset_llm, reset_run, set_llm, set_run
-from app.mcp_client.transport import HttpTransport
+from app.db import AgentRun, Analysis, session_scope
+from app.mcp_client import (
+    HttpTransport,
+    RedisLimiter,
+    RunContext,
+    reset_llm,
+    reset_run,
+    set_llm,
+    set_run,
+)
 from app.schemas.output_schema import AnalyzeResponse
-from app.services.bucket import RedisBucket
-from app.services.cache import RedisCache
 from app.services.unknown_skills import save_unknown_skills
 
 logger = logging.getLogger(__name__)
@@ -24,8 +27,6 @@ def execute_analysis(
     *,
     transport: object | None = None,
     llm: object | None = None,
-    cache: object | None = None,
-    bucket: object | None = None,
 ) -> None:
     settings = get_settings()
     skills = load_skills()
@@ -51,10 +52,9 @@ def execute_analysis(
             limits={name: skill.limits["max_tool_calls"] for name, skill in skills.items()},
             budget=settings.tool_budget,
             transport=transport or HttpTransport(),
-            bucket=bucket or RedisBucket(settings.redis_url),
-            cache=cache or RedisCache(settings.redis_url),
             lock=threading.Lock(),
             node_calls={},
+            limiter=RedisLimiter(),
         )
         token_run = set_run(ctx)
         if llm is not None:
@@ -116,7 +116,11 @@ def _save(session, row: Analysis, run: AgentRun, state: dict) -> None:
         extraction = match.get("extraction") or {}
         body["resume_skills"] = list(extraction.get("resume_skills") or [])
         body["jd_skills"] = list(extraction.get("jd_skills") or [])
-        body["partial"] = bool(match.get("error") or state.get("audit_error"))
+        body["partial"] = _partial(match, state)
+        if state.get("github_error"):
+            body["github_error"] = state["github_error"]
+        if state.get("experience_error"):
+            body["experience_error"] = state["experience_error"]
         row.result_json = body
         row.score = float(score.get("score") or 0)
         row.status = "completed"
@@ -132,3 +136,12 @@ def _save(session, row: Analysis, run: AgentRun, state: dict) -> None:
         "experience_skipped": bool(state.get("experience_skipped")),
     }
     logger.error("analysis incomplete id=%s", row.id)
+
+
+def _partial(match: dict, state: dict) -> bool:
+    return bool(
+        match.get("error")
+        or state.get("audit_error")
+        or state.get("github_error")
+        or state.get("experience_error")
+    )

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SkillProof AI - Analysis</title>
+  <title>SkillProof AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
 </head>
@@ -15,10 +15,8 @@
     <div class="header-inner">
       <a class="brand" href="app.html">SkillProof AI</a>
       <nav class="nav" aria-label="Account">
-        <a href="app.html">New analysis</a>
-        <a href="history.html">History</a>
+        <a href="app.html" aria-current="page">Analysis</a>
         <a href="chat.html">Chat</a>
-        <a href="compare.html">Compare</a>
         <a href="admin.html" data-admin hidden>Admin</a>
         <span class="user-email" data-email></span>
         <button class="button button-danger" type="button" data-delete-account>Delete my data</button>
@@ -27,7 +25,14 @@
     </div>
   </header>
   <main class="page">
-    <section id="composer">
+    <div class="tabs" role="tablist" aria-label="Analysis">
+      <button class="button button-quiet" type="button" role="tab" data-view="new" aria-selected="true">New analysis</button>
+      <button class="button button-quiet" type="button" role="tab" data-view="results" aria-selected="false">Results</button>
+      <button class="button button-quiet" type="button" role="tab" data-view="history" aria-selected="false">History</button>
+      <button class="button button-quiet" type="button" role="tab" data-view="compare" aria-selected="false">Compare</button>
+    </div>
+
+    <section id="view-new">
       <h1>New analysis</h1>
       <p class="lede">Compare a resume with one job description. The score is a JD Match Score, not an employer ATS score.</p>
       <form id="analyzeForm">
@@ -49,19 +54,46 @@
           <label for="githubUsername">Username</label>
           <input id="githubUsername" name="github_username" type="text" autocomplete="off" spellcheck="false" placeholder="octocat" required>
         </section>
-        <p id="formError" class="banner banner-error" hidden></p>
+        <div id="formError" hidden></div>
         <div class="form-actions">
           <button class="button button-primary" type="submit">Run analysis</button>
         </div>
       </form>
     </section>
-    <section id="progress" hidden aria-live="polite">
-      <div class="card">
-        <h2>Analysis in progress</h2>
-        <p id="progressStatus">Your analysis is queued.</p>
-      </div>
+
+    <section id="view-results" hidden>
+      <h1>Results</h1>
+      <div id="progress" hidden></div>
+      <div id="results"></div>
     </section>
-    <section id="results" hidden></section>
+
+    <section id="view-history" hidden>
+      <h1>History</h1>
+      <p class="lede">Past analyses stay on your account.</p>
+      <section class="card">
+        <h2>Score trend</h2>
+        <div id="trend" class="trend"></div>
+        <p id="trendNote" class="helper"></p>
+      </section>
+      <section class="card">
+        <h2>Analyses</h2>
+        <div id="historyList"></div>
+      </section>
+    </section>
+
+    <section id="view-compare" hidden>
+      <h1>Compare jobs</h1>
+      <p class="lede">Rank up to 10 job descriptions against your latest completed analysis.</p>
+      <form id="compareForm" class="card">
+        <div id="jobFields"></div>
+        <button class="button button-quiet" type="button" id="addJob">Add a job</button>
+        <div id="compareError" hidden></div>
+        <div class="form-actions">
+          <button class="button button-primary" type="submit">Rank jobs</button>
+        </div>
+      </form>
+      <section id="compareResult" class="card" hidden></section>
+    </section>
   </main>
   <script type="module" src="js/app.js"></script>
 </body>

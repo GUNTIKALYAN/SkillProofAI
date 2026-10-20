@@ -24,7 +24,7 @@ def _resume_bytes() -> bytes:
 
 
 def test_history_lists_only_the_owner_and_saves_a_company_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.services.analysis_service.enqueue_analysis", lambda _analysis_id: None)
+    monkeypatch.setattr("app.api.analyses.execute_analysis", lambda _analysis_id: None)
     with TestClient(app) as client:
         owner = {"Authorization": f"Bearer {register(client, 'owner@example.com')}"}
         other = {"Authorization": f"Bearer {register(client, 'reader@example.com')}"}
@@ -62,16 +62,16 @@ def test_history_lists_only_the_owner_and_saves_a_company_url(monkeypatch: pytes
 
 
 def test_user_pages_are_static_and_do_not_inject_html() -> None:
+    pages = ("auth.html", "app.html", "chat.html", "admin.html")
     with TestClient(app) as client:
-        for name in ("login.html", "signup.html", "app.html", "history.html", "chat.html", "compare.html", "admin.html"):
-            page = client.get(f"/{name}")
-            assert page.status_code == 200
-            stem = name.removesuffix(".html")
-            assert f"js/{stem}.js" in page.text
-        assert client.get("/css/tokens.css").status_code == 200
-        home = client.get("/", follow_redirects=False)
-        assert home.status_code == 307
-        assert home.headers["location"] == "/app.html"
+        for name in pages:
+            assert client.get(f"/{name}").status_code == 404
+        assert client.get("/css/tokens.css").status_code == 404
+        assert client.get("/").status_code == 404
+    for name in pages:
+        text = (FRONTEND / name).read_text(encoding="utf-8")
+        stem = name.removesuffix(".html")
+        assert f"js/{stem}.js" in text
     for path in (FRONTEND / "js").glob("*.js"):
         text = path.read_text(encoding="utf-8")
         assert "innerHTML" not in text

@@ -1,14 +1,13 @@
 import logging
 import uuid
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.db.models import (
+from app.db import (
     AgentRun,
     AgentStep,
     Analysis,
-    AuditLog,
     ChatMessage,
     ChatSession,
     RefreshToken,
@@ -31,8 +30,6 @@ def delete_owned(session: Session, user_id: uuid.UUID) -> None:
             session.execute(delete(AgentRun).where(AgentRun.analysis_id.in_(analysis_ids)))
         session.execute(delete(Analysis).where(Analysis.user_id == user_id))
     session.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
-    session.execute(update(AuditLog).where(AuditLog.user_id == user_id).values(user_id=None))
-    session.execute(update(AuditLog).where(AuditLog.admin_id == user_id).values(admin_id=None))
 
 
 def delete_account(session: Session, user: User) -> None:

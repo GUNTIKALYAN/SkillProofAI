@@ -8,23 +8,10 @@ _ENV_NAMES = {
     "groq_api_key": "GROQ_API_KEY",
     "database_url": "DATABASE_URL",
     "jwt_secret": "JWT_SECRET",
-    "skillgraph_url": "SKILLGRAPH_URL",
-    "skillgraph_token": "SKILLGRAPH_TOKEN",
+    "mcp_url": "MCP_URL",
+    "mcp_token": "MCP_TOKEN",
     "redis_url": "REDIS_URL",
-    "github_mcp_url": "GITHUB_MCP_URL",
-    "github_mcp_token": "GITHUB_MCP_TOKEN",
-    "tavily_mcp_url": "TAVILY_MCP_URL",
-    "tavily_mcp_token": "TAVILY_MCP_TOKEN",
-    "verify_mcp_url": "VERIFY_MCP_URL",
-    "verify_mcp_token": "VERIFY_MCP_TOKEN",
 }
-
-_DEFAULT_ORIGINS = (
-    "http://localhost,https://localhost,http://127.0.0.1,https://127.0.0.1,"
-    "http://localhost:3000,http://127.0.0.1:3000,"
-    "http://localhost:8000,http://127.0.0.1:8000,"
-    "http://localhost:5500,http://127.0.0.1:5500"
-)
 
 
 def _env_files() -> tuple[str, ...]:
@@ -46,18 +33,11 @@ class Settings(BaseSettings):
     access_token_minutes: int = Field(default=15, gt=0)
     refresh_token_days: int = Field(default=7, gt=0)
     cookie_secure: bool = False
-    cors_origins: str = _DEFAULT_ORIGINS
     admin_email: str | None = None
     admin_password: str | None = None
-    skillgraph_url: str = Field(min_length=1)
-    skillgraph_token: str = Field(min_length=16)
+    mcp_url: str = Field(min_length=1)
+    mcp_token: str = Field(min_length=16)
     redis_url: str = Field(min_length=1)
-    github_mcp_url: str = Field(min_length=1)
-    github_mcp_token: str = Field(min_length=16)
-    tavily_mcp_url: str = Field(min_length=1)
-    tavily_mcp_token: str = Field(min_length=16)
-    verify_mcp_url: str = Field(min_length=1)
-    verify_mcp_token: str = Field(min_length=16)
     mcp_probe: bool = True
     tool_budget: int = Field(default=40, gt=0)
     chat_max_chars: int = Field(default=2000, gt=0)

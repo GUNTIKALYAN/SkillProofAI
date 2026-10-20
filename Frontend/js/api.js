@@ -49,23 +49,6 @@ async function send(path, options) {
   return fetch(path, init);
 }
 
-export async function readEvents(path, options, onEvent) {
-  const response = await authorized(path, options);
-  if (!response.body) throw new ApiError(response.status, "The reply was empty", null);
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const step = await reader.read();
-    if (step.done) break;
-    buffer += decoder.decode(step.value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
-    for (const part of parts) deliver(part, onEvent);
-  }
-  if (buffer.trim()) deliver(buffer, onEvent);
-}
-
 async function authorized(path, options) {
   let response = await send(path, options);
   if (response.status === 401 && !options.retried && !OPEN.has(path)) {
@@ -80,12 +63,6 @@ async function authorized(path, options) {
   }
   if (!response.ok) throw await readError(response);
   return response;
-}
-
-function deliver(part, onEvent) {
-  const line = part.split("\n").find((item) => item.startsWith("data: "));
-  if (!line) return;
-  onEvent(JSON.parse(line.slice(6)));
 }
 
 async function readError(response) {

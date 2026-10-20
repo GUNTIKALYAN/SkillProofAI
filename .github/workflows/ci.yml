@@ -8,48 +8,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: skillproof
-          POSTGRES_PASSWORD: skillproof
-          POSTGRES_DB: skillproof
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U skillproof -d skillproof"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      neo4j:
-        image: neo4j:5.26.0
-        env:
-          NEO4J_AUTH: neo4j/skillproof-neo4j
-        ports:
-          - 7687:7687
-        options: >-
-          --health-cmd "cypher-shell -u neo4j -p skillproof-neo4j 'RETURN 1'"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 18
-
-    env:
-      SKILLPROOF_INTEGRATION: "1"
-      STACK_DATABASE_URL: postgresql://skillproof:skillproof@localhost:5432/skillproof
-      STACK_REDIS_URL: redis://localhost:6379/0
-      STACK_NEO4J_URI: bolt://localhost:7687
-      STACK_NEO4J_USER: neo4j
-      STACK_NEO4J_PASSWORD: skillproof-neo4j
 
     steps:
       - name: Checkout
@@ -68,9 +26,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-          python -m pip install ruff==0.17.0 pip-audit==2.10.1
+          python -m pip install ruff==0.17.0
 
-      - name: Ruff
+      - name: Backend ruff
         working-directory: Backend
         run: ruff check .
 
@@ -78,82 +36,10 @@ jobs:
         working-directory: Backend
         run: pytest
 
-      - name: Skill-Graph tests
-        working-directory: mcp_servers/skillgraph
-        run: python -m pytest
+      - name: Gateway ruff
+        working-directory: gateway
+        run: ruff check .
 
-      - name: Tavily MCP tests
-        working-directory: mcp_servers/tavily
-        run: python -m pytest
-
-      - name: Verify MCP tests
-        working-directory: mcp_servers/verify
-        run: python -m pytest
-
-      - name: GitHub MCP tests
-        working-directory: mcp_servers/github
-        run: python -m pytest
-
-      - name: Dependency audit
-        run: |
-          pip-audit -r requirements.txt
-          pip-audit -r mcp_servers/skillgraph/requirements.txt
-          pip-audit -r mcp_servers/tavily/requirements.txt
-          pip-audit -r mcp_servers/verify/requirements.txt
-          pip-audit -r mcp_servers/github/requirements.txt
-
-  images:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build images
-        run: |
-          docker build -f Backend/Dockerfile -t skillproof-backend:ci .
-          docker build -f mcp_servers/skillgraph/Dockerfile -t skillproof-skillgraph:ci mcp_servers/skillgraph
-          docker build -f mcp_servers/tavily/Dockerfile -t skillproof-tavily:ci mcp_servers/tavily
-          docker build -f mcp_servers/verify/Dockerfile -t skillproof-verify:ci mcp_servers/verify
-          docker build -f mcp_servers/github/Dockerfile -t skillproof-github:ci mcp_servers/github
-          docker build -t skillproof-frontend:ci ./Frontend
-
-      - name: Images do not run as root
-        run: |
-          for image in skillproof-backend:ci skillproof-skillgraph:ci skillproof-tavily:ci skillproof-verify:ci skillproof-github:ci; do
-            id="$(docker create "$image")"
-            user="$(docker inspect --format '{{.Config.User}}' "$id")"
-            docker rm "$id" >/dev/null
-            test "$user" = "app"
-          done
-          id="$(docker create skillproof-frontend:ci)"
-          user="$(docker inspect --format '{{.Config.User}}' "$id")"
-          docker rm "$id" >/dev/null
-          test -n "$user"
-          test "$user" != "root"
-
-      - name: Login to Docker Hub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Push backend image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:latest
-          docker tag skillproof-backend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:${{ github.sha }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-backend:${{ github.sha }}
-
-      - name: Push frontend image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          docker tag skillproof-frontend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:latest
-          docker tag skillproof-frontend:ci ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:${{ github.sha }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/skillproof-frontend:${{ github.sha }}
+      - name: Gateway tests
+        working-directory: gateway
+        run: pytest

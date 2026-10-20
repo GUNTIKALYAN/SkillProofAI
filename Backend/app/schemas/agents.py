@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ExplanationItem(BaseModel):
@@ -22,6 +22,18 @@ class JobEntry(BaseModel):
 
 class ExperienceParse(BaseModel):
     entries: list[JobEntry]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _one_object(cls, value: object) -> object:
+        if not isinstance(value, dict) or "entries" in value:
+            return value
+        jobs = value.get("jobs")
+        if isinstance(jobs, list):
+            return {"entries": jobs}
+        if "company" in value and "title" in value:
+            return {"entries": [value]}
+        return value
 
 
 class PlanItem(BaseModel):

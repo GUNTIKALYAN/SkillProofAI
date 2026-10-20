@@ -4,9 +4,8 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Analysis
+from app.db import Analysis
 from app.schemas.input_schema import AnalyzeRequest
-from app.services.jobs import QueueError, enqueue_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +27,5 @@ def accept_analysis(
     )
     session.add(row)
     session.commit()
-    try:
-        enqueue_analysis(row.id)
-    except QueueError:
-        row.status = "failed"
-        session.commit()
-        raise
     logger.info("analysis queued id=%s", row.id)
     return row.id

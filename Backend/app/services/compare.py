@@ -2,14 +2,13 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Analysis, User
-from app.llm.complete import LlmError
-from app.mcp_client import McpError, call_tool
+from app.db import Analysis, User
+from app.llm import LlmError
+from app.mcp_client import Clients, McpError, call_tool, default_clients, open_tools
 from app.schemas.chat import ComparedJob, CompareResponse
 from app.services.analysis_access import completed_analysis
 from app.services.chat import NoAnalysis
 from app.services.skill_extract import ExtractionError, extract_skills
-from app.services.tool_session import Clients, default_clients, tool_session
 
 _PREVIEW = 80
 
@@ -34,7 +33,7 @@ def compare_jobs(
     resume = _resume_text(row)
     used = clients or default_clients()
     try:
-        with tool_session("compare", session, used):
+        with open_tools("compare", session, used):
             ranked, counts = _score_jobs(resume, row.result_json or {}, cleaned)
     except (LlmError, ExtractionError, McpError) as exc:
         raise CompareFailed from exc
@@ -50,7 +49,6 @@ def _score_jobs(resume: str, result: dict, jobs: list[str]) -> tuple[list[Compar
         extraction = extract_skills(resume, job)
         candidate = stored or extraction.resume_skills
         score = call_tool(
-            "skillgraph",
             "score_match",
             {
                 "jd_skills": [item.model_dump() for item in extraction.jd_skills],
