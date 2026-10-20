@@ -7,14 +7,11 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.agents.skills.loader import load_skills
+from app.agents.skills_loader import load_skills
 from app.config import get_settings
-from app.db.models import ChatMessage, ChatSession, User
+from app.db import ChatMessage, ChatSession, User
 from app.llm.complete import LlmError, complete_json
-from app.mcp_client import McpError, call_tool
-from app.schemas.chat import ChatDraft
-from app.services.analysis_access import completed_analysis
-from app.services.tool_session import Clients, default_clients, tool_session
+from app.mcp_client import Clients, McpError, call_tool, default_clients, open_tools
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +72,7 @@ def answer(
     session.add(ChatMessage(session_id=thread.id, role="user", content=message, tokens=0))
     used = clients or default_clients()
     try:
-        with tool_session("chatbot", session, used):
+        with open_tools("chatbot", session, used):
             reply, tokens = _reply(message, row.result_json or {})
     except (LlmError, McpError) as exc:
         logger.error("chat failed error=%s", type(exc).__name__)
@@ -94,7 +91,6 @@ def _reply(message: str, result: dict) -> tuple[ChatReply, int]:
 
 def _what_if(skill: str, result: dict) -> ChatReply:
     learned = call_tool(
-        "skillgraph",
         "what_if_learn",
         {
             "skill": skill,
@@ -137,7 +133,6 @@ def _talk(message: str, result: dict) -> tuple[ChatReply, int]:
 def _tool_result(name: str, skill: str, result: dict) -> dict:
     if name == "what_if_learn":
         learned = call_tool(
-            "skillgraph",
             "what_if_learn",
             {
                 "skill": skill,
@@ -153,7 +148,7 @@ def _tool_result(name: str, skill: str, result: dict) -> dict:
             "before": learned.get("before"),
             "after": learned.get("after"),
         }
-    found = call_tool("skillgraph", name, {"skill": skill}, "chatbot")
+    found = call_tool(name, {"skill": skill}, "chatbot")
     if name == "related_skills":
         names = [item.get("skill") for item in found.get("related") or [] if isinstance(item, dict)]
         return {"tool": name, "skill": skill, "related": names[:8]}
